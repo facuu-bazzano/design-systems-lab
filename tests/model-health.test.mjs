@@ -54,6 +54,12 @@ test("v2 projects are upgraded to a complete v3 baseline", () => {
   assert.equal(resolver.resolveProjectTokens(upgraded, "light", "mobile").ready, true);
 });
 
+test("the former Nova starter upgrades to the validated starter", () => {
+  const upgraded = model.migrateProject({ ...model.createInitialProject(), schemaVersion: 2, id: "ds-nova", meta: { name: "Nova Design System", description: "Anterior", brandMark: "N", updatedAt: "" }, semanticTokens: [] });
+  assert.equal(upgraded.meta.name, "Sistema inicial validado");
+  assert.equal(health.analyzeProject(upgraded).score, 100);
+});
+
 test("exports selective tokens, shared CSS variables and structured documentation", () => {
   const project = model.createInitialProject();
   const subset = exporters.buildTokenSubset(project, ["colors", "semantics"]);

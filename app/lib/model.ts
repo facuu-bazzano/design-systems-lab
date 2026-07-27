@@ -121,6 +121,7 @@ export function migrateProject(input: unknown): DesignSystemProject {
   const fallback = createInitialProject();
   if (!input || typeof input !== "object") return fallback;
   const candidate = input as LegacyProject;
+  if (candidate.id === "ds-nova" && candidate.meta?.name === "Nova Design System") return fallback;
   if (candidate.schemaVersion === 3 && candidate.meta && candidate.foundations) {
     return { ...fallback, ...candidate, schemaVersion: 3, meta: { ...fallback.meta, ...candidate.meta }, foundations: { ...fallback.foundations, ...candidate.foundations, scales: { ...fallback.foundations.scales, ...candidate.foundations.scales } }, platforms: Object.fromEntries(platformOrder.map((id) => [id, { ...fallback.platforms[id], ...candidate.platforms?.[id], scaleOverrides: { ...fallback.platforms[id].scaleOverrides, ...candidate.platforms?.[id]?.scaleOverrides } }])) as Record<PlatformId, PlatformConfig>, implementationProfile: { ...fallback.implementationProfile, ...candidate.implementationProfile } } as DesignSystemProject;
   }
