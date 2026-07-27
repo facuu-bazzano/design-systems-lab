@@ -17,6 +17,7 @@
 /.next/
 /.vinext/
 /out/
+/storybook-static/
 
 # misc
 .DS_Store

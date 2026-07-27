@@ -7,10 +7,10 @@ const root = new URL("../", import.meta.url);
 async function loadTs(path, dependencies = {}) {
   const source = await readFile(new URL(path, root), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
-  const module = { exports: {} };
+  const loadedModule = { exports: {} };
   const localRequire = (id) => dependencies[id] || (() => { throw new Error(`Unknown test dependency ${id}`); })();
-  new Function("exports", "module", "require", code)(module.exports, module, localRequire);
-  return module.exports;
+  new Function("exports", "module", "require", code)(loadedModule.exports, loadedModule, localRequire);
+  return loadedModule.exports;
 }
 
 const model = await loadTs("app/lib/model.ts");

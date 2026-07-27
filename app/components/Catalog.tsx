@@ -2,70 +2,91 @@
 
 import { CSSProperties, useMemo, useState } from "react";
 import * as Checkbox from "@radix-ui/react-checkbox";
-import * as RadioGroup from "@radix-ui/react-radio-group";
+import * as Radio from "@radix-ui/react-radio-group";
+import * as SelectPrimitive from "@radix-ui/react-select";
 import * as Switch from "@radix-ui/react-switch";
-import * as Select from "@radix-ui/react-select";
-import * as Tabs from "@radix-ui/react-tabs";
-import { allColorReferences, DesignSystemProject, PlatformId, platformOrder, requiredSemanticIds, semanticById } from "../lib/model";
+import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { catalogCategories, catalogRegistry, CatalogEntry } from "../lib/catalog-registry";
+import { DesignSystemProject, PlatformId, platformOrder, resolveComponent, semanticById } from "../lib/model";
 import { resolveProjectTokens } from "../lib/token-resolver";
+import { Alert, Badge, Button, Card, SectionHeading, Select, Tabs } from "./ui/LabUI";
+import { CheckIcon, ChevronDownIcon } from "./ui/Icons";
 
-type Props = { project: DesignSystemProject; onCreateSemantic: (id: string, reference: string) => void; onOpenTokens: () => void };
-const sections = [["actions", "Acciones"], ["inputs", "Inputs"], ["feedback", "Feedback"], ["surfaces", "Datos y superficies"], ["navigation", "Navegación"]];
-const tokenLabels: Record<string, string> = { "surface-default": "surface.default", "text-primary": "text.primary", "feedback-destructive": "feedback.destructive", "action-primary": "action.primary", "focus-ring": "focus.ring", "selected-surface": "selected.surface" };
+type Props = { project: DesignSystemProject; onOpenTokens: (token: string) => void };
+const stateClass = (state: string) => `state-${state.toLowerCase().replaceAll("/", "-").replaceAll(" ", "-")}`;
 
-function TokenList({ children }: { children: string[] }) { return <details className="token-consumption"><summary>Tokens consumidos</summary><div>{children.map((token) => <code key={token}>{token}</code>)}</div></details>; }
-function Spec({ title, purpose, tokens, children }: { title: string; purpose: string; tokens: string[]; children: React.ReactNode }) { return <article className="component-spec-card"><header><div><h3>{title}</h3><p>{purpose}</p></div><TokenList>{tokens}</TokenList></header><div className="component-stage">{children}</div></article>; }
-function State({ label, children }: { label: string; children: React.ReactNode }) { return <div className="state-example"><span>{label}</span>{children}</div>; }
-
-function DsSelect({ value, onValueChange, items, label, projectStyle }: { value: string; onValueChange: (value: string) => void; items: { value: string; label: string }[]; label: string; projectStyle?: CSSProperties }) {
-  return <Select.Root value={value} onValueChange={onValueChange}><Select.Trigger className={`ds-select-trigger ${projectStyle ? "project-select" : ""}`} aria-label={label}><Select.Value /><Select.Icon>⌄</Select.Icon></Select.Trigger><Select.Portal><Select.Content style={projectStyle} className={`ds-select-content ${projectStyle ? "project-select-content" : ""}`} position="popper"><Select.Viewport>{items.map((item) => <Select.Item className="ds-select-item" key={item.value} value={item.value}><Select.ItemText>{item.label}</Select.ItemText><Select.ItemIndicator>✓</Select.ItemIndicator></Select.Item>)}</Select.Viewport></Select.Content></Select.Portal></Select.Root>;
+function ProjectButton({ state }: { state: string }) {
+  const destructive = state === "Destructive";
+  return <button className={`project-button ${destructive ? "destructive" : ""} ${stateClass(state)}`} disabled={state === "Disabled"}>{destructive ? "Eliminar" : "Continuar"}</button>;
+}
+function ProjectField({ multiline = false, state }: { multiline?: boolean; state: string }) {
+  const props = { className: `project-field ${stateClass(state)}`, disabled: state === "Disabled", "aria-invalid": state === "Error" || undefined, defaultValue: multiline ? "Notas para el equipo de diseño." : state === "Error" ? "equipo@" : "Ada Lovelace" };
+  return <label className="project-field-wrap"><span>{multiline ? "Descripción" : "Nombre"}</span>{multiline ? <textarea {...props} /> : <input {...props} />}<small>{state === "Error" ? "Revisá el valor ingresado." : "Texto de ayuda visible y legible."}</small></label>;
+}
+function ProjectSelect({ state }: { state: string }) {
+  const control = <SelectPrimitive.Root defaultValue="design" disabled={state === "Disabled"}><SelectPrimitive.Trigger className={`project-select ${stateClass(state)}`}><SelectPrimitive.Value /><SelectPrimitive.Icon><ChevronDownIcon /></SelectPrimitive.Icon></SelectPrimitive.Trigger><SelectPrimitive.Content className="project-select-popup" position="popper" sideOffset={5}><SelectPrimitive.Viewport>{[["design", "Diseño"], ["product", "Producto"], ["engineering", "Ingeniería"]].map(([value, label]) => <SelectPrimitive.Item key={value} value={value}><SelectPrimitive.ItemText>{label}</SelectPrimitive.ItemText></SelectPrimitive.Item>)}</SelectPrimitive.Viewport></SelectPrimitive.Content></SelectPrimitive.Root>;
+  return <div className="project-select-demo">{control}{state === "Open" ? <div className="project-select-open"><b>Diseño</b><span>Producto</span><span>Ingeniería</span></div> : null}</div>;
+}
+function ProjectSelection({ kind, state }: { kind: "checkbox" | "radio" | "switch"; state: string }) {
+  const selected = state === "Selected";
+  const disabled = state === "Disabled";
+  if (kind === "checkbox") return <label className="project-control"><Checkbox.Root defaultChecked={selected} disabled={disabled} className={`project-checkbox ${stateClass(state)}`}><Checkbox.Indicator><CheckIcon /></Checkbox.Indicator></Checkbox.Root><span>Recibir novedades</span></label>;
+  if (kind === "radio") return <Radio.Root defaultValue={selected ? "pro" : "basic"} className="project-radio-group"><label className="project-control"><Radio.Item value="basic" disabled={disabled} className={`project-radio ${stateClass(state)}`}><Radio.Indicator /></Radio.Item><span>Plan básico</span></label><label className="project-control"><Radio.Item value="pro" disabled={disabled} className="project-radio"><Radio.Indicator /></Radio.Item><span>Plan profesional</span></label></Radio.Root>;
+  return <label className="project-control"><Switch.Root defaultChecked={selected} disabled={disabled} className={`project-switch ${stateClass(state)}`}><Switch.Thumb /></Switch.Root><span>Notificaciones</span></label>;
+}
+function ProjectTabs({ state }: { state: string }) {
+  return <TabsPrimitive.Root defaultValue={state === "Selected" ? "tokens" : "overview"} className="project-tabs"><TabsPrimitive.List><TabsPrimitive.Trigger value="overview" disabled={state === "Disabled"}>Resumen</TabsPrimitive.Trigger><TabsPrimitive.Trigger value="tokens">Tokens</TabsPrimitive.Trigger><TabsPrimitive.Trigger value="usage">Uso</TabsPrimitive.Trigger></TabsPrimitive.List><TabsPrimitive.Content value="overview">Resumen del componente.</TabsPrimitive.Content><TabsPrimitive.Content value="tokens">Tokens consumidos.</TabsPrimitive.Content><TabsPrimitive.Content value="usage">Guía de uso.</TabsPrimitive.Content></TabsPrimitive.Root>;
+}
+function ProjectFeedback({ entry, state }: { entry: CatalogEntry; state: string }) {
+  if (entry.id === "badge") return <span className={`project-badge ${stateClass(state)}`}>{state}</span>;
+  return <div className={`project-alert ${stateClass(state)}`}><b>{state}</b><span>El cambio se aplicó al sistema.</span></div>;
+}
+function ProjectSurface({ entry, state }: { entry: CatalogEntry; state: string }) {
+  if (entry.id === "card") return <div className={`project-card ${stateClass(state)}`}><b>Cobertura de foundations</b><p>Los roles esenciales están conectados.</p><strong>100%</strong></div>;
+  return <table className={`project-table ${stateClass(state)}`}><thead><tr><th>Token</th><th>Estado</th></tr></thead><tbody><tr><td>surface.default</td><td>Asignado</td></tr><tr><td>focus.ring</td><td>Asignado</td></tr></tbody></table>;
+}
+function PreviewFor({ entry, state }: { entry: CatalogEntry; state: string }) {
+  if (entry.id === "button" || entry.id === "link") return entry.id === "link" ? <a href="#catalog-navigation" className={`project-link ${stateClass(state)}`}>Ver detalle</a> : <ProjectButton state={state} />;
+  if (entry.id === "input" || entry.id === "textarea") return <ProjectField multiline={entry.id === "textarea"} state={state} />;
+  if (entry.id === "select") return <ProjectSelect state={state} />;
+  if (entry.id === "checkbox" || entry.id === "radio" || entry.id === "switch") return <ProjectSelection kind={entry.id as "checkbox" | "radio" | "switch"} state={state} />;
+  if (entry.id === "tabs") return <ProjectTabs state={state} />;
+  if (entry.category === "feedback") return <ProjectFeedback entry={entry} state={state} />;
+  if (entry.category === "surfaces") return entry.id === "divider" ? <hr className="project-divider" /> : <ProjectSurface entry={entry} state={state} />;
+  return null;
 }
 
-function PendingCatalog({ project, missing, onCreateSemantic, onOpenTokens }: { project: DesignSystemProject; missing: string[]; onCreateSemantic: Props["onCreateSemantic"]; onOpenTokens: () => void }) {
-  const [reference, setReference] = useState("");
-  const firstSemantic = missing.find((item) => item.startsWith("semantic:"))?.slice(9);
-  return <section className="catalog-pending"><div className="pending-illustration"><span>01</span><span>02</span><span>03</span></div><div><span className="section-kicker">Configuración pendiente</span><h2>{project.projectState === "blank" ? "Conectá las primeras foundations" : "Completá los tokens requeridos"}</h2><p>El catálogo no simula colores ni estados. Cuando los roles estén asignados, los controles reales aparecerán usando exclusivamente las variables del proyecto.</p><ol><li>Creá al menos una paleta.</li><li>Asigná superficie, texto, acción, foco y feedback.</li><li>Conectá las decisiones estables de componente.</li></ol>{firstSemantic && allColorReferences(project).length > 2 ? <div className="pending-inline-action"><DsSelect label="Foundation para rol pendiente" value={reference} onValueChange={setReference} items={allColorReferences(project).map((value) => ({ value, label: value }))} /><button className="primary-action" disabled={!reference} onClick={() => { onCreateSemantic(firstSemantic, reference); setReference(""); }}>Asignar {tokenLabels[firstSemantic] || firstSemantic}</button></div> : <button className="primary-action" onClick={onOpenTokens}>Ir a Tokens</button>}</div></section>;
+function TokenInspector({ entry, project, theme, platform, onOpenTokens }: { entry: CatalogEntry; project: DesignSystemProject; theme: string; platform: PlatformId; onOpenTokens: Props["onOpenTokens"] }) {
+  const componentName = entry.componentTokens[0];
+  const component = project.componentTokens.find((token) => token.name === componentName);
+  const semanticName = component?.reference.startsWith("semantic:") ? component.reference.slice(9) : entry.semanticTokens[0];
+  const semantic = semanticById(project, semanticName || "");
+  const primitive = semantic?.platformRefs[platform] || semantic?.themeRefs[theme] || semantic?.defaultRef || (component?.reference.startsWith("primitive:") ? component.reference.replace("primitive:", "") : "");
+  const resolved = component ? resolveComponent(project, component.id, theme, platform) : "";
+  const pending = (!componentName && !semanticName) || (componentName && !component) || (semanticName && !semantic) || !primitive;
+  return <div className={`catalog-inspector ${pending ? "pending" : ""}`}><div><span>Token de componente</span><code>{componentName || "No aplica"}</code></div><i>→</i><div><span>Semántico</span><code>{semantic?.name || semanticName || "No aplica"}</code></div><i>→</i><div><span>Foundation</span><code>{primitive || "Configuración pendiente"}</code></div><div className="inspector-resolved"><span>Valor resuelto</span><code>{resolved || (primitive ? "Disponible en semántica" : "Pendiente")}</code></div><Button size="sm" variant={pending ? "primary" : "quiet"} onClick={() => onOpenTokens(componentName || semanticName || entry.id)}>{pending ? "Configurar token" : "Editar en Tokens"}</Button></div>;
 }
 
-export function Catalog({ project, onCreateSemantic, onOpenTokens }: Props) {
+function ComponentSpec({ entry, project, theme, platform, onOpenTokens }: { entry: CatalogEntry; project: DesignSystemProject; theme: string; platform: PlatformId; onOpenTokens: Props["onOpenTokens"] }) {
+  return <Card className="catalog-spec" ><div className="catalog-spec-head"><div><h3>{entry.name}</h3><p>{entry.purpose}</p></div><Badge tone={entry.priority === "core" ? "info" : "neutral"}>{entry.priority === "core" ? "Prioritario" : "Ampliable"}</Badge></div><div className="catalog-state-matrix">{entry.states.map((state) => <div className="catalog-state" key={state}><span>{state}</span><div><PreviewFor entry={entry} state={state} /></div></div>)}</div><TokenInspector entry={entry} project={project} theme={theme} platform={platform} onOpenTokens={onOpenTokens} /></Card>;
+}
+
+export function Catalog({ project, onOpenTokens }: Props) {
   const enabledPlatforms = platformOrder.filter((id) => project.platforms[id].enabled);
-  const [themeId, setThemeId] = useState(project.themes[0]?.id || "light");
+  const [theme, setTheme] = useState(project.themes[0]?.id || "light");
   const [platform, setPlatform] = useState<PlatformId>(enabledPlatforms[0] || "mobile");
-  const [inputValue, setInputValue] = useState("Ada Lovelace");
-  const [newsletter, setNewsletter] = useState(true);
-  const [plan, setPlan] = useState("pro");
-  const [notifications, setNotifications] = useState(true);
-  const [team, setTeam] = useState("product");
-  const snapshot = useMemo(() => resolveProjectTokens(project, themeId, platform), [project, themeId, platform]);
-  const missingRequired = requiredSemanticIds.filter((id) => !semanticById(project, id));
-
-  return <div className="catalog-view">
-    <header className="view-header"><div><span className="section-kicker">Documentación viva</span><h1>Catálogo de componentes</h1><p>Probá controles reales, estados y contraste con los tokens activos. Esta vista valida decisiones antes de llevarlas a Figma.</p></div></header>
-    <div className="catalog-toolbar"><div><label>Modo<DsSelect label="Modo del catálogo" value={themeId} onValueChange={setThemeId} items={project.themes.map((theme) => ({ value: theme.id, label: theme.name }))} /></label><label>Plataforma<DsSelect label="Plataforma del catálogo" value={platform} onValueChange={(value) => setPlatform(value as PlatformId)} items={enabledPlatforms.map((id) => ({ value: id, label: project.platforms[id].name }))} /></label></div><span className={snapshot.ready ? "catalog-status ready" : "catalog-status pending"}>{snapshot.ready ? "Tokens resueltos" : `${snapshot.missing.length} asignaciones pendientes`}</span></div>
-    {!snapshot.ready ? <PendingCatalog project={project} missing={snapshot.missing} onCreateSemantic={onCreateSemantic} onOpenTokens={onOpenTokens} /> : <div className="catalog-layout">
-      <aside className="catalog-index"><strong>Índice</strong>{sections.map(([id, label]) => <a key={id} href={`#catalog-${id}`}>{label}</a>)}</aside>
-      <main className={`catalog-document catalog-${platform}`} style={snapshot.cssVariables}>
-        <header className="catalog-document-header"><div><span>{project.meta.brandMark}</span><div><strong>{project.meta.name}</strong><small>{project.themes.find((theme) => theme.id === themeId)?.name} · {project.platforms[platform].name}</small></div></div><p>Component foundations · vista interactiva</p></header>
-        <section id="catalog-actions" className="catalog-section"><div className="catalog-section-title"><span>01</span><div><h2>Acciones</h2><p>Inician tareas y comunican prioridad.</p></div></div><div className="spec-grid">
-          <Spec title="Button" purpose="Acciones principales, secundarias y destructivas." tokens={["button.primary.*", "feedback.destructive", "focus.ring"]}><div className="state-grid"><State label="Default"><button className="ds-button primary">Continuar</button></State><State label="Hover"><button className="ds-button primary is-hover">Continuar</button></State><State label="Focus"><button className="ds-button primary is-focus">Continuar</button></State><State label="Pressed"><button className="ds-button primary is-pressed">Continuar</button></State><State label="Secondary"><button className="ds-button secondary">Volver</button></State><State label="Destructive"><button className="ds-button destructive">Eliminar</button></State><State label="Disabled"><button className="ds-button primary" disabled>Continuar</button></State></div></Spec>
-          <Spec title="Link e icon button" purpose="Acciones compactas y navegación contextual." tokens={["action.primary", "focus.ring", "control.radius"]}><div className="inline-demo"><a className="ds-link" href="#catalog-navigation">Ver navegación →</a><button className="ds-icon-button" aria-label="Más opciones">•••</button></div></Spec>
-        </div></section>
-        <section id="catalog-inputs" className="catalog-section"><div className="catalog-section-title"><span>02</span><div><h2>Inputs</h2><p>Capturan y validan información.</p></div></div><div className="spec-grid">
-          <Spec title="Input y textarea" purpose="Entrada de texto con ayudas y validación." tokens={["input.default.border", "input.focus.border", "input.error.border"]}><div className="field-grid"><label className="ds-field"><span>Nombre</span><input value={inputValue} onChange={(event) => setInputValue(event.target.value)} /><small>Ingresá tu nombre completo.</small></label><label className="ds-field is-focus"><span>Organización</span><input defaultValue="Analytical Engine" /></label><label className="ds-field is-error"><span>Email</span><input defaultValue="ada@" aria-invalid="true" /><small>Ingresá un email válido.</small></label><label className="ds-field"><span>Notas</span><textarea defaultValue="Contexto para el equipo de diseño." /></label><label className="ds-field is-disabled"><span>Identificador</span><input value="DS-001" disabled readOnly /></label></div></Spec>
-          <Spec title="Select" purpose="Elección entre opciones mutuamente excluyentes." tokens={["surface.raised", "border.strong", "focus.ring"]}><DsSelect label="Equipo" value={team} onValueChange={setTeam} projectStyle={snapshot.cssVariables} items={[{ value: "product", label: "Producto" }, { value: "design", label: "Diseño" }, { value: "engineering", label: "Ingeniería" }]} /></Spec>
-          <Spec title="Checkbox, radio y switch" purpose="Selección múltiple, única y activación inmediata." tokens={["selected.surface", "selected.border", "disabled.*"]}><div className="selection-grid"><label className="ds-control-line"><Checkbox.Root className="ds-checkbox" checked={newsletter} onCheckedChange={(value) => setNewsletter(value === true)}><Checkbox.Indicator>✓</Checkbox.Indicator></Checkbox.Root><span>Recibir novedades</span></label><RadioGroup.Root className="ds-radio-group" value={plan} onValueChange={setPlan}><label className="ds-control-line"><RadioGroup.Item className="ds-radio" value="basic"><RadioGroup.Indicator /></RadioGroup.Item><span>Plan básico</span></label><label className="ds-control-line"><RadioGroup.Item className="ds-radio" value="pro"><RadioGroup.Indicator /></RadioGroup.Item><span>Plan profesional</span></label></RadioGroup.Root><label className="ds-control-line"><Switch.Root className="ds-switch" checked={notifications} onCheckedChange={setNotifications}><Switch.Thumb /></Switch.Root><span>Notificaciones</span></label><label className="ds-control-line is-disabled"><Checkbox.Root className="ds-checkbox" disabled><Checkbox.Indicator>✓</Checkbox.Indicator></Checkbox.Root><span>No disponible</span></label></div></Spec>
-        </div></section>
-        <section id="catalog-feedback" className="catalog-section"><div className="catalog-section-title"><span>03</span><div><h2>Feedback</h2><p>Comunica estado, resultado y próximos pasos.</p></div></div><div className="spec-grid">
-          <Spec title="Alert" purpose="Información contextual con distinto nivel de urgencia." tokens={["feedback.success", "feedback.warning", "feedback.destructive"]}><div className="alert-stack"><div className="ds-alert info"><b>Información</b><span>Los cambios se aplicaron al preview.</span></div><div className="ds-alert success"><b>Listo</b><span>La configuración fue validada.</span></div><div className="ds-alert warning"><b>Revisión pendiente</b><span>Comprobá la grilla de tablet.</span></div><div className="ds-alert destructive"><b>No se pudo continuar</b><span>Corregí los campos marcados.</span></div></div></Spec>
-          <Spec title="Badge y mensaje de error" purpose="Metadatos breves y validación junto al control." tokens={["selected.surface", "feedback.destructive", "text.muted"]}><div className="badge-row"><span className="ds-badge">Neutral</span><span className="ds-badge selected">Seleccionado</span><span className="ds-badge success">Validado</span><span className="ds-badge warning">Pendiente</span><span className="ds-badge destructive">Error</span></div><p className="ds-error-message">Ingresá un valor válido para continuar.</p></Spec>
-        </div></section>
-        <section id="catalog-surfaces" className="catalog-section"><div className="catalog-section-title"><span>04</span><div><h2>Datos y superficies</h2><p>Agrupan contenido y facilitan lectura comparativa.</p></div></div><div className="spec-grid">
-          <Spec title="Card" purpose="Agrupa información relacionada y una acción clara." tokens={["surface.raised", "card.container.radius", "card.container.shadow"]}><div className="ds-card"><span className="ds-card-icon">DS</span><div><h4>Foundation coverage</h4><p>19 roles semánticos conectados.</p></div><strong>100%</strong></div></Spec>
-          <Spec title="Lista, tabla y divider" purpose="Presenta datos escaneables sin editar interfaces de producto." tokens={["border.subtle", "text.primary", "text.muted"]}><div className="ds-list"><div><span>Color</span><b>5 paletas</b></div><div><span>Tipografía</span><b>5 estilos</b></div></div><div className="ds-divider" /><table className="ds-data-table"><thead><tr><th>Token</th><th>Estado</th></tr></thead><tbody><tr><td>surface.default</td><td><span className="ds-badge success">Asignado</span></td></tr><tr><td>focus.ring</td><td><span className="ds-badge success">Asignado</span></td></tr></tbody></table></Spec>
-        </div></section>
-        <section id="catalog-navigation" className="catalog-section"><div className="catalog-section-title"><span>05</span><div><h2>Navegación</h2><p>Organiza contenido relacionado sin perder contexto.</p></div></div><Spec title="Tabs" purpose="Alterna vistas del mismo nivel jerárquico." tokens={["selected.surface", "selected.border", "focus.ring"]}><Tabs.Root className="ds-tabs" defaultValue="overview"><Tabs.List aria-label="Secciones"><Tabs.Trigger value="overview">Resumen</Tabs.Trigger><Tabs.Trigger value="tokens">Tokens</Tabs.Trigger><Tabs.Trigger value="usage">Uso</Tabs.Trigger></Tabs.List><Tabs.Content value="overview"><p>Vista general del componente y sus estados.</p></Tabs.Content><Tabs.Content value="tokens"><p>Variables semánticas y de componente consumidas.</p></Tabs.Content><Tabs.Content value="usage"><p>Recomendaciones para documentar antes del handoff.</p></Tabs.Content></Tabs.Root></Spec></section>
-      </main>
-    </div>}
-    {missingRequired.length ? <span className="sr-only">Tokens pendientes: {missingRequired.join(", ")}</span> : null}
+  const [priority, setPriority] = useState("core");
+  const snapshot = useMemo(() => resolveProjectTokens(project, theme, platform), [project, theme, platform]);
+  const entries = priority === "all" ? catalogRegistry : catalogRegistry.filter((item) => item.priority === "core");
+  return <div className="catalog-v4">
+    <SectionHeading title="Catálogo" description="Playground y documentación viva para inspeccionar componentes, estados y cadenas de tokens antes de llevar decisiones a Figma." />
+    <Card className="catalog-toolbar-v4"><div><Select label="Modo" value={theme} onValueChange={setTheme} options={project.themes.map((item) => ({ value: item.id, label: item.name }))} /><Select label="Plataforma" value={platform} onValueChange={(value) => setPlatform(value as PlatformId)} options={enabledPlatforms.map((id) => ({ value: id, label: project.platforms[id].name }))} /></div><Tabs value={priority} onValueChange={setPriority} ariaLabel="Alcance del catálogo" tabs={[{ value: "core", label: "Prioritarios" }, { value: "all", label: `Registro completo · ${catalogRegistry.length}` }]} /><Badge tone={snapshot.ready ? "success" : "warning"}>{snapshot.ready ? "Tokens resueltos" : `${snapshot.missing.length} pendientes`}</Badge></Card>
+    {!snapshot.ready ? <Alert tone="warning" title="Configuración pendiente" action={<Button size="sm" onClick={() => onOpenTokens(snapshot.missing[0] || "surface.default")}>Asignar tokens</Button>}>Las muestras siguen siendo legibles para explicar la arquitectura, pero no simulan roles faltantes. Completá las referencias para evaluar el aspecto real.</Alert> : null}
+    <nav className="catalog-local-nav" aria-label="Índice del catálogo">{catalogCategories.map((category) => <a href={`#catalog-${category.id}`} key={category.id}>{category.label}</a>)}</nav>
+    <div className={`catalog-project-surface catalog-platform-${platform}`} style={snapshot.cssVariables as CSSProperties}>{catalogCategories.map((category) => {
+      const categoryEntries = entries.filter((entry) => entry.category === category.id);
+      if (!categoryEntries.length) return null;
+      return <section key={category.id} id={`catalog-${category.id}`} className="catalog-category"><SectionHeading level={2} title={category.label} description={category.description} />{categoryEntries.map((entry) => <ComponentSpec key={entry.id} entry={entry} project={project} theme={theme} platform={platform} onOpenTokens={onOpenTokens} />)}</section>;
+    })}</div>
   </div>;
 }
