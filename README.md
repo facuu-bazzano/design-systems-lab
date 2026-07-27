@@ -1,14 +1,16 @@
-# Laboratorio de Sistemas de Diseño
+# Laboratorio de Sistemas de DiseÃ±o
 
-Prueba de concepto pública para explorar, configurar, previsualizar, documentar y exportar la base de un sistema de diseño antes de llevarla manualmente a Figma.
+Prueba de concepto pÃºblica para explorar, configurar, previsualizar, documentar y exportar la base de un sistema de diseÃ±o antes de llevarla manualmente a Figma.
 
-## Qué incluye
+Sitio pÃºblico: [facuu-bazzano.github.io/design-systems-lab](https://facuu-bazzano.github.io/design-systems-lab/)
+
+## QuÃ© incluye
 
 - Proyecto configurable con portada y objetivo web, mobile o ambos.
-- Paletas con escalas, tipografía, espaciado, dimensiones, radios, bordes, sombras, opacidad, layout y grupos libres.
-- Temas y tokens semánticos referenciados a foundations.
+- Paletas con escalas, tipografÃ­a, espaciado, dimensiones, radios, bordes, sombras, opacidad, layout y grupos libres.
+- Temas y tokens semÃ¡nticos referenciados a foundations.
 - Preview inmediato web/mobile y validaciones iniciales de contraste y consistencia.
-- Persistencia local, exportación/importación del proyecto, tokens JSON y variables CSS.
+- Persistencia local, exportaciÃ³n/importaciÃ³n del proyecto, tokens JSON y variables CSS.
 
 ## Desarrollo
 
@@ -19,7 +21,7 @@ npm install
 npm run dev
 ```
 
-Validación:
+ValidaciÃ³n:
 
 ```bash
 npm run build
@@ -27,3 +29,5 @@ npm test
 ```
 
 El proyecto usa vinext y genera una salida ESM compatible con Cloudflare Workers. No requiere cuentas, backend ni variables de entorno.
+
+La rama `main` tambiÃ©n genera una exportaciÃ³n estÃ¡tica con la ruta base `/design-systems-lab` y la publica automÃ¡ticamente mediante GitHub Pages.

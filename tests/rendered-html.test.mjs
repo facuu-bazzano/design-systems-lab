@@ -1,34 +1,37 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
+const projectRoot = new URL("../", import.meta.url);
+const outputRoot = new URL("../out/", import.meta.url);
+const basePath = "/design-systems-lab";
 
-  return worker.fetch(
-    new Request("http://localhost/", { headers: { accept: "text/html" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-}
-
-test("server-renders the design system laboratory", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
-  const html = await response.text();
-  assert.match(html, /<title>Laboratorio de Sistemas de Diseño<\/title>/i);
+test("exports the complete laboratory as static HTML", async () => {
+  const html = await readFile(new URL("index.html", outputRoot), "utf8");
+  assert.match(html, /<title>Laboratorio de Sistemas de DiseÃ±o<\/title>/i);
   assert.match(html, /Design System/);
   assert.match(html, /Nova Design System/);
   assert.match(html, /Preview en vivo/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
+  await access(new URL(".nojekyll", outputRoot));
 });
 
-test("keeps the product capabilities in one central project model", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+test("prefixes every root asset for the GitHub Pages repository path", async () => {
+  const html = await readFile(new URL("index.html", outputRoot), "utf8");
+  const assetUrls = [...html.matchAll(/(?:href|src)="([^"]+)"/g)]
+    .map((match) => match[1])
+    .filter((url) => url.startsWith("/"));
+
+  assert.ok(assetUrls.length > 0);
+  for (const url of assetUrls) {
+    assert.ok(url.startsWith(`${basePath}/`), `${url} omits the repository base path`);
+    const localPath = url.slice(basePath.length + 1).split("?")[0];
+    await access(new URL(localPath, outputRoot));
+  }
+});
+
+test("keeps product capabilities in one central project model", async () => {
+  const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
   assert.match(page, /type DesignSystemProject/);
   assert.match(page, /localStorage\.setItem/);
   assert.match(page, /importProject/);
