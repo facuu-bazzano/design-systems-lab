@@ -2,49 +2,16 @@
 
 import { CSSProperties } from "react";
 import { analyzeProject } from "../lib/health";
-import { DesignSystemProject, LabSection, resolveSemantic } from "../lib/model";
+import { DesignSystemProject, LabSection } from "../lib/model";
+import { resolveProjectTokens } from "../lib/token-resolver";
 
 export function HealthView({ project, onNavigate }: { project: DesignSystemProject; onNavigate: (section: LabSection) => void }) {
   const health = analyzeProject(project);
-  const theme = project.themes[0]?.id || "light";
-  const vars = {
-    "--mini-surface": resolveSemantic(project, "surface-default", theme, "mobile") || "transparent",
-    "--mini-raised": resolveSemantic(project, "surface-raised", theme, "mobile") || "transparent",
-    "--mini-text": resolveSemantic(project, "text-primary", theme, "mobile") || "currentColor",
-    "--mini-muted": resolveSemantic(project, "text-muted", theme, "mobile") || "currentColor",
-    "--mini-action": resolveSemantic(project, "action-primary", theme, "mobile") || "transparent",
-    "--mini-on-action": resolveSemantic(project, "text-on-action", theme, "mobile") || "currentColor",
-    "--mini-border": resolveSemantic(project, "border-subtle", theme, "mobile") || "currentColor",
-    "--mini-selected": resolveSemantic(project, "selected-surface", theme, "mobile") || "transparent",
-    "--mini-radius": project.foundations.scales.radii.find((token) => token.name === "md")?.value || "0",
-    "--project-font": `'${project.foundations.typography.family}', system-ui, sans-serif`,
-  } as CSSProperties;
-
-  return (
-    <div className="health-view">
-      <header className="view-header"><div><span className="section-kicker">Auditoría global</span><h1>Salud del sistema</h1><p>Hallazgos consolidados para todos los modos, plataformas y capas de tokens. Cada indicador explica qué afecta el nivel de preparación.</p></div></header>
-      <div className="health-overview">
-        <article className="score-card"><div className="score-ring" style={{ "--score": `${health.score * 3.6}deg` } as CSSProperties}><span>{health.score}</span></div><div><span className="score-label">Preparación general</span><h2>{health.score >= 90 ? "Listo para documentar" : health.score >= 70 ? "Base sólida, con revisiones" : "Requiere atención"}</h2><p>Parte de 100 y descuenta 14 por crítico, 6 por advertencia y 2 por recomendación. Los factores aparecen a la derecha.</p></div></article>
-        <div className="health-metrics"><article><span>Cobertura semántica</span><b>{health.coverage}%</b><small>{project.semanticTokens.length} roles definidos</small></article><article><span>Críticos</span><b>{health.counts.critical}</b><small>Bloquean estados confiables</small></article><article><span>Advertencias</span><b>{health.counts.warning}</b><small>Requieren revisión</small></article><article><span>Plataformas</span><b>{Object.values(project.platforms).filter((platform) => platform.enabled).length}</b><small>activas en el proyecto</small></article></div>
-      </div>
-
-      <div className="health-content-grid">
-        <section className="findings-panel">
-          <div className="panel-heading"><div><span className="section-kicker">Hallazgos</span><h2>Qué necesita atención</h2></div><span className="count-badge">{health.findings.length}</span></div>
-          {health.findings.length ? <div className="finding-list">{health.findings.map((finding) => <button key={finding.id} className={`finding-item ${finding.severity}`} onClick={() => onNavigate(finding.section)}><span className="finding-icon">{finding.severity === "critical" ? "!" : finding.severity === "warning" ? "△" : "i"}</span><div><div><strong>{finding.area}</strong><span>{finding.mode}</span></div><p>{finding.explanation}</p></div><b>Corregir →</b></button>)}</div> : <div className="health-empty"><span>✓</span><strong>Sin hallazgos activos</strong><p>La configuración actual pasa las verificaciones iniciales.</p></div>}
-        </section>
-
-        <aside className="health-live-panel">
-          <div className="panel-heading"><div><span className="section-kicker">Interfaz viva</span><h2>Lectura rápida</h2></div><span className="live-dot">Live</span></div>
-          <div className="health-mini-ui" style={vars}>
-            <div className="mini-ui-head"><span>{project.meta.brandMark}</span><i></i><i></i><b></b></div>
-            <div className="mini-ui-copy"><small>PRÓXIMO HITO</small><h3>Prepará el handoff</h3><p>Revisá la cobertura antes de documentar el sistema.</p></div>
-            <div className="mini-ui-card"><div><span className="mini-ui-avatar">DS</span><p><strong>Foundations</strong><small>{project.foundations.colors.length} paletas · {project.foundations.typography.levels.length} estilos</small></p><b>{health.coverage}%</b></div><div className="mini-progress"><span style={{ width: `${health.coverage}%` }}></span></div><button>Ver catálogo</button></div>
-          </div>
-          <div className="health-explanation"><h3>Factores visibles</h3><ul><li><span className="dot critical"></span>Referencias rotas y contrastes críticos</li><li><span className="dot warning"></span>Modos o plataformas sin revisar</li><li><span className="dot info"></span>Recomendaciones de composición</li></ul></div>
-        </aside>
-      </div>
-    </div>
-  );
+  const snapshot = resolveProjectTokens(project, project.themes[0]?.id || "light", "mobile");
+  if (health.status === "not-evaluated") return <div className="health-view"><header className="view-header"><div><span className="section-kicker">Auditoría global</span><h1>Salud del sistema</h1><p>Las verificaciones empiezan cuando existe una base mínima evaluable.</p></div></header><section className="health-not-evaluated"><span>Sin evaluar</span><h2>Configuración pendiente</h2><p>Este proyecto en blanco no está fallando: todavía no tiene foundations ni roles suficientes para medir contraste, cobertura o estados.</p><ol><li>Creá una paleta y una tipografía base.</li><li>Asigná los roles semánticos esenciales.</li><li>Conectá los tokens de componente.</li></ol><button className="primary-action" onClick={() => onNavigate("colors")}>Comenzar por Color</button></section></div>;
+  return <div className="health-view">
+    <header className="view-header"><div><span className="section-kicker">Auditoría global</span><h1>Salud del sistema</h1><p>Reglas aplicables a los modos, plataformas y capas activas. Cada hallazgo muestra causa y acción.</p></div></header>
+    <div className="health-overview"><article className="score-card"><div className="score-ring" style={{ "--score": `${(health.score || 0) * 3.6}deg` } as CSSProperties}><span>{health.score}</span></div><div><span>Preparación general</span><h2>{health.summary}</h2><p>El puntaje parte de 100 y descuenta solo reglas aplicables: 18 por bloqueante, 5 por advertencia y 2 por recomendación.</p></div></article><div className="health-metrics"><article><span>Cobertura semántica</span><b>{health.coverage}%</b><small>roles esenciales</small></article><article><span>Bloqueantes</span><b>{health.counts.blocking}</b><small>impiden un handoff confiable</small></article><article><span>Advertencias</span><b>{health.counts.warning}</b><small>requieren revisión</small></article><article><span>Recomendaciones</span><b>{health.counts.recommendation}</b><small>mejoras no bloqueantes</small></article></div></div>
+    <div className="health-content-grid"><section className="findings-panel"><div className="panel-heading"><div><span className="section-kicker">Hallazgos</span><h2>Qué necesita atención</h2></div><span className="count-badge">{health.findings.length}</span></div>{health.findings.length ? <div className="finding-list">{health.findings.map((finding) => <article key={finding.id} className={`finding-item ${finding.severity}`}><span className="finding-severity">{finding.severity === "blocking" ? "Bloqueante" : finding.severity === "warning" ? "Advertencia" : "Recomendación"}</span><div className="finding-context"><span>{finding.mode}</span><span>{finding.platform}</span><span>{finding.area}</span></div><h3>{finding.cause}</h3><p>{finding.action}</p><button onClick={() => onNavigate(finding.section)}>Corregir en {finding.section === "semantics" ? "Tokens" : "Foundations"} →</button></article>)}</div> : <div className="health-empty"><span>✓</span><h3>Sin hallazgos activos</h3><p>El sistema inicial pasa los bloqueantes, contrastes y referencias configuradas.</p></div>}</section><aside className="health-live-panel"><div className="panel-heading"><div><span className="section-kicker">Interfaz viva</span><h2>Muestra resuelta</h2></div><span className="live-badge">Live</span></div>{snapshot.ready ? <div className="health-mini-ui" style={snapshot.cssVariables}><header><span>{project.meta.brandMark}</span><b>{project.meta.name}</b><i /></header><main><small>FOUNDATIONS</small><h3>Prepará el handoff</h3><p>Todos los roles esenciales están disponibles para el catálogo.</p><div><b>Cobertura</b><strong>{health.coverage}%</strong><span><i style={{ width: `${health.coverage}%` }} /></span><button>Ver catálogo</button></div></main></div> : <div className="live-pending">La muestra aparecerá cuando los tokens esenciales estén resueltos.</div>}<div className="health-legend"><h3>Cómo leer el resultado</h3><p><i className="blocking" />Bloqueantes: referencias o contraste esencial.</p><p><i className="warning" />Advertencias: plataformas o estados por revisar.</p><p><i className="recommendation" />Recomendaciones: portabilidad y composición.</p></div></aside></div>
+  </div>;
 }
-

@@ -1,19 +1,19 @@
 "use client";
 
 import { ChangeEvent, CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Catalog } from "./components/Catalog";
 import { HealthView } from "./components/HealthView";
 import { analyzeProject } from "./lib/health";
 import { buildCss, buildDocumentation, buildTokenSubset, downloadText, ExportCategory, projectFilename } from "./lib/exporters";
 import {
-  allColorReferences, colorSteps, createInitialProject, DesignSystemProject, fontOptions, generateColorScale, generateTypeLevels,
+  allColorReferences, colorSteps, createBlankProject, createInitialProject, DesignSystemProject, fontOptions, generateColorScale, generateTypeLevels,
   LabSection, makePalette, migrateProject, PlatformId, platformOrder, ratioOptions, relativeLuminance, requiredSemanticIds,
   resolveLayout, resolveResponsiveScale, resolveSemantic, scaleLabels, ScaleGroupKey, semanticById, uid,
 } from "./lib/model";
 
 const STORAGE_KEY = "design-system-lab-project-v1";
 const LAB_THEME_KEY = "design-system-lab-ui-theme";
-type SaveStatus = "saving" | "saved" | "unsaved";
 
 const navItems: { id: LabSection; label: string; group: string; icon: string }[] = [
   { id: "project", label: "Proyecto", group: "Configurar", icon: "P" },
@@ -68,7 +68,6 @@ export default function Home() {
   const [project, setProject] = useState<DesignSystemProject>(() => createInitialProject());
   const [section, setSection] = useState<LabSection>("project");
   const [labTheme, setLabTheme] = useState<"light" | "dark">("light");
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [hydrated, setHydrated] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedScale, setSelectedScale] = useState<ScaleGroupKey>("spacing");
@@ -107,13 +106,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!hydrated) return;
-    const statusTimer = window.setTimeout(() => setSaveStatus("saving"), 0);
     const persistTimer = window.setTimeout(() => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...project, meta: { ...project.meta, updatedAt: new Date().toISOString() } }));
-      setSaveStatus("saved");
     }, 450);
     return () => {
-      window.clearTimeout(statusTimer);
       window.clearTimeout(persistTimer);
     };
   }, [project, hydrated]);
@@ -140,7 +136,6 @@ export default function Home() {
   const colorReferences = useMemo(() => allColorReferences(project), [project]);
   const missingSemantics = requiredSemanticIds.filter((id) => !semanticById(project, id));
   const updateProject = (recipe: (current: DesignSystemProject) => DesignSystemProject) => {
-    setSaveStatus("unsaved");
     setProject((current) => recipe(current));
   };
   const flash = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(""), 2600); };
@@ -154,7 +149,7 @@ export default function Home() {
         const imported = migrateProject(JSON.parse(String(reader.result)));
         setProject(imported);
         setFontSearch(imported.foundations.typography.family);
-        flash(imported.schemaVersion === 2 ? "Proyecto importado" : "Proyecto importado y actualizado");
+        flash("Proyecto importado y listo para continuar");
       } catch { flash("El archivo no es un proyecto compatible"); }
     };
     reader.readAsText(file);
@@ -226,9 +221,10 @@ export default function Home() {
     const enabled = platformOrder.filter((id) => project.platforms[id].enabled);
     const thumbColors = project.foundations.colors.slice(0, 2).map((palette) => palette.scale[600] || palette.base);
     return <>
-      <SectionHeader kicker="Configuración" title="Proyecto y alcance" description="Mobile es la base. Las demás plataformas heredan propuestas revisables sin duplicar todo el sistema." />
+      <SectionHeader kicker="Configuración" title="Proyecto y alcance" description="Mobile es la base. Elegí un punto de partida y activá solo las plataformas que necesita el sistema." />
+      <section className="starter-presets"><article className={project.projectState === "validated" ? "active" : ""}><span className="status-chip success">Recomendado</span><h2>Sistema inicial validado</h2><p>Foundations, roles esenciales, modos contrastados y catálogo funcional desde el inicio.</p><button className="secondary-action" onClick={() => { if (window.confirm("¿Reemplazar el proyecto actual por el sistema inicial validado?")) { setProject(createInitialProject()); setFontSearch("Inter"); flash("Sistema inicial cargado"); } }}>Usar este punto de partida</button></article><article className={project.projectState === "blank" ? "active" : ""}><span className="status-chip">Opcional</span><h2>Proyecto en blanco</h2><p>Comienza sin asignaciones. Salud mostrará “Sin evaluar” y una guía, no un error.</p><button className="secondary-action" onClick={() => { if (window.confirm("¿Reemplazar el proyecto actual por un proyecto en blanco?")) { setProject(createBlankProject()); setFontSearch("Inter"); flash("Proyecto en blanco creado"); } }}>Comenzar en blanco</button></article></section>
       <div className="two-column-layout">
-        <section className="zinc-card form-stack"><div className="card-heading"><div><h2>Identidad</h2><p>Datos que acompañan al blueprint y su documentación.</p></div><span className="status-chip">v2</span></div><TextField label="Nombre" value={project.meta.name} onChange={(value) => updateProject((current) => ({ ...current, meta: { ...current.meta, name: value } }))} /><TextField label="Descripción" multiline value={project.meta.description} onChange={(value) => updateProject((current) => ({ ...current, meta: { ...current.meta, description: value } }))} /><TextField label="Marca corta" value={project.meta.brandMark} onChange={(value) => updateProject((current) => ({ ...current, meta: { ...current.meta, brandMark: value.slice(0, 3) } }))} help="Hasta tres caracteres para thumbnail y previews." /></section>
+        <section className="zinc-card form-stack"><div className="card-heading"><div><h2>Identidad</h2><p>Datos que acompañan al blueprint y su documentación.</p></div><span className="status-chip">Blueprint</span></div><TextField label="Nombre" value={project.meta.name} onChange={(value) => updateProject((current) => ({ ...current, meta: { ...current.meta, name: value } }))} /><TextField label="Descripción" multiline value={project.meta.description} onChange={(value) => updateProject((current) => ({ ...current, meta: { ...current.meta, description: value } }))} /><TextField label="Marca corta" value={project.meta.brandMark} onChange={(value) => updateProject((current) => ({ ...current, meta: { ...current.meta, brandMark: value.slice(0, 3) } }))} help="Hasta tres caracteres para thumbnail y previews." /></section>
         <section className="zinc-card"><div className="card-heading"><div><h2>Plataformas responsivas</h2><p>Activá solo las que necesita el proyecto.</p></div><span className="status-chip mobile-first">Mobile first</span></div><div className="platform-list">{platformOrder.map((id) => <div key={id} className="platform-row"><div><strong>{project.platforms[id].name}</strong><small>{id === "mobile" ? "Base del sistema" : `Hereda de ${project.platforms[id].inheritFrom === "mobile" ? "Mobile" : project.platforms[id].inheritFrom}`}</small></div><Toggle label="" checked={project.platforms[id].enabled} disabled={id === "mobile"} onChange={(checked) => setPlatformEnabled(id, checked)} /></div>)}</div></section>
       </div>
       <div className="two-column-layout project-secondary">
@@ -290,7 +286,7 @@ export default function Home() {
     if (section === "typography") return renderTypography();
     if (section === "scales") return renderScales();
     if (section === "semantics") return renderTokens();
-    if (section === "catalog") return <Catalog project={project} onCreateSemantic={createSemantic} />;
+    if (section === "catalog") return <Catalog project={project} onCreateSemantic={createSemantic} onOpenTokens={() => setSection("semantics")} />;
     if (section === "health") return <HealthView project={project} onNavigate={setSection} />;
     return renderExport();
   };
@@ -299,19 +295,18 @@ export default function Home() {
   return <div className={`lab-shell lab-${labTheme}`}>
     <header className="lab-header">
       <button className="lab-brand" onClick={() => setSection("project")}><span className="lab-brand-mark"><i></i><i></i><i></i></span><span>Design System <b>Lab</b></span></button>
-      <div className="header-project"><strong>{project.meta.name || "Proyecto sin nombre"}</strong><span className={`save-state ${saveStatus}`}><i></i>{saveStatus === "saving" ? "Guardando…" : saveStatus === "saved" ? "Guardado localmente" : "Cambios sin guardar"}</span></div>
+      <div className="header-project"><strong>{project.meta.name || "Proyecto sin nombre"}</strong></div>
       <div className="header-actions">
         <button className="theme-button" aria-label={`Usar modo ${labTheme === "light" ? "oscuro" : "claro"} del Laboratorio`} onClick={() => setLabTheme((theme) => theme === "light" ? "dark" : "light")}>{labTheme === "light" ? "◐" : "☼"}</button>
-        <details className="project-menu"><summary>Proyecto <span>⌄</span></summary><div><button onClick={() => importRef.current?.click()}>Importar archivo</button><button onClick={() => downloadProject(project)}>Descargar proyecto</button><button onClick={() => updateProject((current) => ({ ...structuredClone(current), id: uid(), meta: { ...current.meta, name: `${current.meta.name} · copia` } }))}>Duplicar proyecto</button><p>El guardado local puede perderse al borrar los datos del navegador.</p></div></details>
-        <div className="split-export"><button onClick={() => setSection("export")}>Exportar</button><details><summary aria-label="Accesos rápidos de exportación">⌄</summary><div><button onClick={() => downloadProject(project)}>Proyecto editable</button><button onClick={() => downloadText(projectFilename(project, "-documentation.html"), buildDocumentation(project), "text/html")}>Documentación HTML</button><button onClick={() => { setSection("export"); flash("Revisá contenido, destino y alcance"); }}>Configurar exportación</button></div></details></div>
+        <DropdownMenu.Root><DropdownMenu.Trigger className="menu-trigger">Proyecto <span>⌄</span></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="radix-menu" align="end"><DropdownMenu.Item onSelect={() => importRef.current?.click()}>Importar archivo</DropdownMenu.Item><DropdownMenu.Item onSelect={() => downloadProject(project)}>Descargar proyecto</DropdownMenu.Item><DropdownMenu.Item onSelect={() => updateProject((current) => ({ ...structuredClone(current), id: uid(), meta: { ...current.meta, name: `${current.meta.name} · copia` } }))}>Duplicar proyecto</DropdownMenu.Item><DropdownMenu.Separator /><p>Se guarda localmente; descargá el archivo para conservar un respaldo.</p></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>
+        <div className="split-export"><button onClick={() => setSection("export")}>Exportar</button><DropdownMenu.Root><DropdownMenu.Trigger aria-label="Accesos rápidos de exportación">⌄</DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className="radix-menu" align="end"><DropdownMenu.Item onSelect={() => downloadProject(project)}>Proyecto editable</DropdownMenu.Item><DropdownMenu.Item onSelect={() => downloadText(projectFilename(project, "-documentation.html"), buildDocumentation(project), "text/html")}>Documentación HTML</DropdownMenu.Item><DropdownMenu.Item onSelect={() => { setSection("export"); flash("Revisá contenido, destino y alcance"); }}>Configurar exportación</DropdownMenu.Item></DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root></div>
         <input hidden ref={importRef} type="file" accept="application/json,.json" onChange={importProject} />
       </div>
     </header>
     <div className="lab-workspace">
-      <aside className="lab-sidebar"><nav>{Object.entries(groupedNav).map(([group, items]) => <div className="nav-group" key={group}><span>{group}</span>{items.map((item) => <button key={item.id} className={section === item.id ? "active" : ""} onClick={() => setSection(item.id)}><i>{item.icon}</i>{item.label}{item.id === "health" && health.findings.length ? <b>{health.findings.length}</b> : null}</button>)}</div>)}</nav><div className="readiness-card"><div><span>Preparación</span><b>{health.score}%</b></div><div className="readiness-track"><i style={{ width: `${health.score}%` }}></i></div><p>{health.counts.critical ? `${health.counts.critical} críticos por resolver` : health.counts.warning ? `${health.counts.warning} revisiones pendientes` : "Sin bloqueos detectados"}</p><button onClick={() => setSection("health")}>Ver explicación</button></div></aside>
+      <aside className="lab-sidebar"><nav>{Object.entries(groupedNav).map(([group, items]) => <div className="nav-group" key={group}><span>{group}</span>{items.map((item) => <button key={item.id} className={section === item.id ? "active" : ""} onClick={() => setSection(item.id)}><i>{item.icon}</i>{item.label}{item.id === "health" && health.findings.length ? <b>{health.findings.length}</b> : null}</button>)}</div>)}</nav><div className="readiness-card"><div><span>Preparación</span><b>{health.score === null ? "Sin evaluar" : `${health.score}%`}</b></div>{health.score !== null ? <div className="readiness-track"><i style={{ width: `${health.score}%` }}></i></div> : null}<p>{health.status === "not-evaluated" ? "Configuración pendiente" : health.counts.blocking ? `${health.counts.blocking} bloqueantes` : health.counts.warning ? `${health.counts.warning} revisiones pendientes` : "Sin bloqueos detectados"}</p><button onClick={() => setSection("health")}>Ver explicación</button></div></aside>
       <main className="lab-main"><div className="lab-main-inner">{renderSection()}</div></main>
     </div>
     {notice ? <div className="lab-toast">{notice}</div> : null}
   </div>;
 }
-
