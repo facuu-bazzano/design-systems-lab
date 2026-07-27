@@ -8,10 +8,11 @@ const basePath = "/design-systems-lab";
 
 test("exports the complete laboratory as static HTML", async () => {
   const html = await readFile(new URL("index.html", outputRoot), "utf8");
-  assert.match(html, /<title>Laboratorio de Sistemas de DiseÃ±o<\/title>/i);
-  assert.match(html, /Design System/);
+  assert.match(html, /<title>Laboratorio de Sistemas de Dise.o<\/title>/i);
   assert.match(html, /Nova Design System/);
-  assert.match(html, /Preview en vivo/);
+  assert.match(html, /Mobile first/);
+  assert.match(html, /Salud del sistema/);
+  assert.match(html, /Thumbnail para Figma/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
   await access(new URL(".nojekyll", outputRoot));
 });
@@ -21,7 +22,6 @@ test("prefixes every root asset for the GitHub Pages repository path", async () 
   const assetUrls = [...html.matchAll(/(?:href|src)="([^"]+)"/g)]
     .map((match) => match[1])
     .filter((url) => url.startsWith("/"));
-
   assert.ok(assetUrls.length > 0);
   for (const url of assetUrls) {
     assert.ok(url.startsWith(`${basePath}/`), `${url} omits the repository base path`);
@@ -30,15 +30,25 @@ test("prefixes every root asset for the GitHub Pages repository path", async () 
   }
 });
 
-test("keeps product capabilities in one central project model", async () => {
+test("keeps v2 capabilities in one serializable project model", async () => {
+  const model = await readFile(new URL("app/lib/model.ts", projectRoot), "utf8");
   const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
-  assert.match(page, /type DesignSystemProject/);
+  const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
+  const health = await readFile(new URL("app/lib/health.ts", projectRoot), "utf8");
+  const exporters = await readFile(new URL("app/lib/exporters.ts", projectRoot), "utf8");
+  assert.match(model, /schemaVersion: 2/);
+  assert.match(model, /semanticTokens: SemanticToken\[\]/);
+  assert.match(model, /componentTokens: ComponentToken\[\]/);
+  assert.match(model, /migrateProject/);
+  assert.match(model, /mobile-landscape/);
   assert.match(page, /localStorage\.setItem/);
   assert.match(page, /importProject/);
-  assert.match(page, /exportProject/);
-  assert.match(page, /contrastRatio/);
-  assert.match(page, /toTokenExport/);
-  assert.match(page, /toCss/);
-  assert.match(page, /setDevice\("mobile"\)/);
-  assert.match(page, /semanticTokens/);
+  assert.match(page, /downloadThumbnail/);
+  assert.match(catalog, /button\.destructive/);
+  assert.match(catalog, /Crear y asignar/);
+  assert.match(health, /contrastRatio/);
+  assert.match(health, /proposalPending/);
+  assert.match(exporters, /buildDocumentation/);
+  assert.match(exporters, /buildTokenSubset/);
 });
+
