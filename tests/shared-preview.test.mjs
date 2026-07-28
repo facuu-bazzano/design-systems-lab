@@ -26,6 +26,15 @@ test("health correction and color palette workflows expose their completion acti
   const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
 
   assert.match(page, /Marcar .* como validada/);
-  assert.match(page, /Eliminar definitivamente/);
+  assert.match(page, /Eliminar paleta “/);
   assert.match(page, /Método para crear paleta/);
+});
+
+test("palette deletion exposes a neutral icon trigger and explicit dependency impact", async () => {
+  const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
+
+  assert.match(page, /Trash2/);
+  assert.match(page, /paletteDependencies/);
+  assert.match(page, /asignaciones semánticas quedarían sin foundation/);
+  assert.match(page, /tokens de componente perderían su valor resuelto/);
 });
