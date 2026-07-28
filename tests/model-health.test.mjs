@@ -14,7 +14,8 @@ async function loadTs(path, dependencies = {}) {
 }
 
 const model = await loadTs("app/lib/model.ts");
-const colorPresets = await loadTs("app/lib/color-presets.ts", { "./model": model });
+const generatedColorLibraries = JSON.parse(await readFile(new URL("app/lib/color-library.generated.json", root), "utf8"));
+const colorPresets = await loadTs("app/lib/color-presets.ts", { "./model": model, "./color-library.generated.json": generatedColorLibraries });
 const registry = await loadTs("app/lib/catalog-registry.ts");
 const resolver = await loadTs("app/lib/token-resolver.ts", { "./model": model, react: {} });
 const health = await loadTs("app/lib/health.ts", { "./model": model, "./token-resolver": resolver });
@@ -61,6 +62,14 @@ test("manual and preset palettes remain editable foundations", () => {
   assert.equal(ant.creationMethod, "preset");
   assert.equal(ant.scale[600], "#1677FF");
   assert.equal(ant.origin, "Ant Design");
+});
+
+test("color library exposes broad, grouped and editable foundations", () => {
+  assert.equal(colorPresets.colorLibraries.length, 11);
+  assert.equal(colorPresets.colorPresets.length, 220);
+  assert.ok(colorPresets.colorLibraries.every((library) => library.presets.length >= 5));
+  assert.ok(colorPresets.colorLibraries.find((library) => library.id === "radix").presets.some((preset) => preset.name.includes("Dark")));
+  assert.ok(colorPresets.colorLibraries.find((library) => library.id === "heroui").presets.some((preset) => preset.name.includes("Success")));
 });
 
 test("blank project is pending rather than failed", () => {

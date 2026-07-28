@@ -38,3 +38,12 @@ test("palette deletion exposes a neutral icon trigger and explicit dependency im
   assert.match(page, /asignaciones semánticas quedarían sin foundation/);
   assert.match(page, /tokens de componente perderían su valor resuelto/);
 });
+
+test("library browser groups broad palette sources without ambiguous publication badges", async () => {
+  const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
+
+  assert.match(page, /colorLibraries/);
+  assert.match(page, /Agregar colecci/);
+  assert.match(page, /Buscar paleta/);
+  assert.doesNotMatch(page, /preset\.fidelity/);
+});
