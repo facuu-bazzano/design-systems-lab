@@ -14,9 +14,10 @@ async function loadTs(path, dependencies = {}) {
 }
 
 const model = await loadTs("app/lib/model.ts");
+const registry = await loadTs("app/lib/catalog-registry.ts");
 const resolver = await loadTs("app/lib/token-resolver.ts", { "./model": model, react: {} });
 const health = await loadTs("app/lib/health.ts", { "./model": model, "./token-resolver": resolver });
-const exporters = await loadTs("app/lib/exporters.ts", { "./model": model, "./token-resolver": resolver, "./health": health });
+const exporters = await loadTs("app/lib/exporters.ts", { "./catalog-registry": registry, "./model": model, "./token-resolver": resolver, "./health": health });
 
 test("validated starter resolves all essential variables in light and dark", () => {
   const project = model.createInitialProject();
@@ -62,6 +63,7 @@ test("the former Nova starter upgrades to the validated starter", () => {
 
 test("exports selective tokens, shared CSS variables and structured documentation", () => {
   const project = model.createInitialProject();
+  project.foundations.colors[0].scale[950] = "#151044";
   const subset = exporters.buildTokenSubset(project, ["colors", "semantics"]);
   assert.ok(Object.keys(subset.color).length > 0);
   assert.ok(Object.keys(subset.semantic).length > 0);
@@ -69,8 +71,12 @@ test("exports selective tokens, shared CSS variables and structured documentatio
   const css = exporters.buildCss(project, ["semantics", "components", "themes"]);
   assert.match(css, /--ds-surface:/);
   assert.match(css, /data-theme="oscuro"/);
+  assert.match(exporters.buildCss(project, ["colors"]), /--color-indigo-950: #151044/);
   const documentation = exporters.buildDocumentation(project);
   for (const id of ["intro", "foundations", "tokens", "components", "patterns", "accessibility", "platforms"]) assert.match(documentation, new RegExp(`id="${id}"`));
   assert.match(documentation, /Sistema inicial validado/);
+  assert.match(documentation, /Accordion/);
+  assert.match(documentation, /Tooltip/);
+  assert.ok(registry.catalogRegistry.length >= 29);
   assert.match(documentation, /\.palette span code\{font-size:12px\}/);
 });

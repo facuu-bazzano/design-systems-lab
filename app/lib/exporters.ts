@@ -1,10 +1,12 @@
 import { analyzeProject } from "./health";
-import { colorSteps, DesignSystemProject, platformOrder, resolveLayout, resolveResponsiveScale } from "./model";
+import { catalogRegistry } from "./catalog-registry";
+import { DesignSystemProject, platformOrder, resolveLayout, resolveResponsiveScale } from "./model";
 import { resolveProjectTokens, resolvedTokenCss } from "./token-resolver";
 
 export type ExportCategory = "colors" | "typography" | "scales" | "semantics" | "components" | "themes" | "platforms";
 const slugify = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "design-system";
 const safe = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character] || character);
+const paletteSteps = (palette: DesignSystemProject["foundations"]["colors"][number]) => Object.keys(palette.scale).sort((a, b) => Number(a) - Number(b));
 export function downloadText(filename: string, content: string, type = "application/json") { const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click(); URL.revokeObjectURL(url); }
 export function projectFilename(project: DesignSystemProject, suffix: string) { return `${slugify(project.meta.name)}${suffix}`; }
 
@@ -13,7 +15,7 @@ export function buildTokenSubset(project: DesignSystemProject, categories: Expor
   return {
     $schema: "https://design-tokens.github.io/community-group/format/",
     project: { name: project.meta.name, schemaVersion: project.schemaVersion, state: project.projectState, generatedAt: new Date().toISOString() },
-    ...(selected.has("colors") ? { color: Object.fromEntries(project.foundations.colors.map((palette) => [slugify(palette.name), Object.fromEntries(colorSteps.map((step) => [step, { $type: "color", $value: palette.scale[step] }]))])) } : {}),
+    ...(selected.has("colors") ? { color: Object.fromEntries(project.foundations.colors.map((palette) => [slugify(palette.name), Object.fromEntries(paletteSteps(palette).map((step) => [step, { $type: "color", $value: palette.scale[step] }]))])) } : {}),
     ...(selected.has("typography") ? { typography: { family: { $type: "fontFamily", $value: project.foundations.typography.family }, levels: Object.fromEntries(project.foundations.typography.levels.map((level) => [slugify(level.name), { $type: "typography", $value: { fontFamily: project.foundations.typography.family, fontSize: `${level.size}px`, fontWeight: level.weight, lineHeight: level.lineHeight, letterSpacing: `${level.tracking}em` } }])) } } : {}),
     ...(selected.has("scales") ? { scales: project.foundations.scales, layout: project.foundations.layoutBase } : {}),
     ...(selected.has("semantics") ? { semantic: Object.fromEntries(project.semanticTokens.map((token) => [token.name, { $type: "color", $value: token.defaultRef, $extensions: { modes: token.themeRefs, platforms: token.platformRefs }, $description: token.description }])) } : {}),
@@ -25,22 +27,14 @@ export function buildTokenSubset(project: DesignSystemProject, categories: Expor
 
 export function buildCss(project: DesignSystemProject, categories: ExportCategory[]) {
   const selected = new Set(categories); const snapshot = resolveProjectTokens(project, project.themes[0]?.id || "light", "mobile");
-  const foundations = selected.has("colors") ? project.foundations.colors.flatMap((palette) => colorSteps.map((step) => `  --color-${slugify(palette.name)}-${step}: ${palette.scale[step]};`)) : [];
+  const foundations = selected.has("colors") ? project.foundations.colors.flatMap((palette) => paletteSteps(palette).map((step) => `  --color-${slugify(palette.name)}-${step}: ${palette.scale[step]};`)) : [];
   const scales = selected.has("scales") ? Object.entries(project.foundations.scales).flatMap(([group, tokens]) => tokens.map((token) => `  --${group}-${slugify(token.name)}: ${token.value};`)) : [];
   const resolved = (selected.has("semantics") || selected.has("components")) ? Object.entries(snapshot.cssVariables).filter(([, value]) => value).map(([name, value]) => `  ${name}: ${value};`) : [];
   const modes = selected.has("themes") ? project.themes.slice(1).map((theme) => { const mode = resolveProjectTokens(project, theme.id, "mobile"); return `[data-theme="${slugify(theme.name)}"] {\n${Object.entries(mode.cssVariables).filter(([, value]) => value).map(([name, value]) => `  ${name}: ${value};`).join("\n")}\n}`; }).join("\n\n") : "";
   return `:root {\n${[...foundations, ...scales, ...resolved].join("\n")}\n}\n\n${modes}\n`;
 }
 
-const componentDocs = [
-  ["Button", "Inicia acciones y expresa jerarquía.", "Default, hover, focus, pressed, disabled y destructivo", "button.primary.*, feedback.destructive, focus.ring"],
-  ["Input y textarea", "Capturan texto y muestran validación cercana.", "Default, focus, disabled y error", "input.*.border, text.*, disabled.*"],
-  ["Select", "Elige una opción de un conjunto cerrado.", "Default, open, focus y disabled", "surface.raised, border.strong, focus.ring"],
-  ["Checkbox, Radio y Switch", "Controlan selección múltiple, única o inmediata.", "Default, selected, focus y disabled", "selected.*, disabled.*, focus.ring"],
-  ["Alert y Badge", "Comunican estado y metadatos breves.", "Información, éxito, advertencia y error", "feedback.*, selected.surface, text.muted"],
-  ["Card, lista y tabla", "Agrupan y comparan información.", "Default y selección", "surface.raised, card.*, border.subtle"],
-  ["Tabs", "Alterna contenido del mismo nivel.", "Default, selected, focus y disabled", "selected.*, focus.ring"],
-];
+const componentDocs = catalogRegistry.map((entry) => [entry.name, entry.purpose, entry.states.join(", "), [...entry.componentTokens, ...entry.semanticTokens].join(", ")] as const);
 
 function docsCatalog(project: DesignSystemProject, themeId: string) {
   const snapshot = resolveProjectTokens(project, themeId, "mobile");
@@ -50,7 +44,7 @@ function docsCatalog(project: DesignSystemProject, themeId: string) {
 
 export function buildDocumentation(project: DesignSystemProject) {
   const health = analyzeProject(project);
-  const palettes = project.foundations.colors.map((palette) => `<article class="palette"><h3>${safe(palette.name)}</h3><div>${colorSteps.map((step) => `<span style="background:${palette.scale[step]}"><b>${step}</b><code>${palette.scale[step]}</code></span>`).join("")}</div></article>`).join("") || `<div class="pending"><b>Color pendiente</b><p>Este proyecto todavía no tiene paletas.</p></div>`;
+  const palettes = project.foundations.colors.map((palette) => `<article class="palette"><h3>${safe(palette.name)}</h3><div>${paletteSteps(palette).map((step) => `<span style="background:${palette.scale[step]}"><b>${step}</b><code>${palette.scale[step]}</code></span>`).join("")}</div></article>`).join("") || `<div class="pending"><b>Color pendiente</b><p>Este proyecto todavía no tiene paletas.</p></div>`;
   const scaleCards = Object.entries(project.foundations.scales).map(([group, tokens]) => `<article class="metric"><b>${safe(group)}</b><p>${tokens.map((token) => `${safe(token.name)}: ${safe(token.value)}`).join(" · ")}</p></article>`).join("");
   const semanticRows = project.semanticTokens.map((token) => `<tr><td><code>${safe(token.name)}</code></td><td>${safe(token.description)}</td><td>${safe(token.defaultRef)}</td><td><span class="ok">Asignado</span></td></tr>`).join("") || `<tr><td colspan="4">Configuración pendiente</td></tr>`;
   const componentRows = project.componentTokens.map((token) => `<tr><td><code>${safe(token.name)}</code></td><td>${safe(token.component)}</td><td><code>${safe(token.reference)}</code></td><td>${safe(token.description)}</td></tr>`).join("") || `<tr><td colspan="4">Configuración pendiente</td></tr>`;

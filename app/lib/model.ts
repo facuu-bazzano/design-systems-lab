@@ -57,6 +57,7 @@ export function generateColorScale(base: string, anchorStep = suggestedAnchor(ba
   }));
 }
 export function makePalette(name: string, base: string): ColorPalette { const anchorStep = suggestedAnchor(base); return { id: uid(), name, base: base.toUpperCase(), anchorStep, range: .78, scale: generateColorScale(base, anchorStep, .78), manualSteps: [] }; }
+function makeNeutralPalette(): ColorPalette { return { id: uid(), name: "Slate", base: "#71717A", anchorStep: 500, range: .78, manualSteps: [], scale: { "50": "#FAFAFA", "100": "#F4F4F5", "200": "#E4E4E7", "300": "#D4D4D8", "400": "#A1A1AA", "500": "#71717A", "600": "#52525B", "700": "#3F3F46", "800": "#27272A", "900": "#18181B" } }; }
 
 export const fontOptions = [
   { family: "Inter", source: "google" as const, weights: [400, 500, 600, 700], styles: ["Normal", "Italic"] }, { family: "Roboto", source: "google" as const, weights: [300, 400, 500, 700], styles: ["Normal", "Italic"] },
@@ -80,12 +81,69 @@ export const defaultSemanticTokens = (): SemanticToken[] => [
   semantic("feedback-success", "feedback.success", "Feedback", "Emerald.700", "Confirmación positiva", "Emerald.500"), semantic("feedback-warning", "feedback.warning", "Feedback", "Amber.700", "Advertencia", "Amber.500"), semantic("feedback-destructive", "feedback.destructive", "Feedback", "Rose.700", "Error o acción destructiva", "Rose.700"),
   semantic("disabled-surface", "disabled.surface", "Estado", "Slate.200", "Superficie deshabilitada", "Slate.700"), semantic("disabled-content", "disabled.content", "Estado", "Slate.500", "Contenido deshabilitado", "Slate.500"), semantic("selected-surface", "selected.surface", "Estado", "Indigo.100", "Control seleccionado", "Indigo.800"), semantic("selected-border", "selected.border", "Estado", "Indigo.600", "Borde seleccionado", "Indigo.300"),
 ];
+const componentToken = (id: string, name: string, component: string, reference: string, description: string): ComponentToken => ({ id, name, component, reference, platformRefs: {}, description });
 export const defaultComponentTokens = (): ComponentToken[] => [
-  { id: "button-primary-bg", name: "button.primary.background", component: "Button", reference: "semantic:action-primary", platformRefs: {}, description: "Fondo del botón primario" }, { id: "button-primary-hover", name: "button.primary.hover", component: "Button", reference: "semantic:action-hover", platformRefs: {}, description: "Estado hover" },
-  { id: "button-primary-pressed", name: "button.primary.pressed", component: "Button", reference: "semantic:action-pressed", platformRefs: {}, description: "Estado presionado" }, { id: "button-destructive-bg", name: "button.destructive.background", component: "Button", reference: "semantic:feedback-destructive", platformRefs: {}, description: "Acción destructiva" },
-  { id: "input-border", name: "input.default.border", component: "Input", reference: "semantic:border-subtle", platformRefs: {}, description: "Borde por defecto" }, { id: "input-focus-border", name: "input.focus.border", component: "Input", reference: "semantic:focus-ring", platformRefs: {}, description: "Borde de foco" },
-  { id: "input-error-border", name: "input.error.border", component: "Input", reference: "semantic:feedback-destructive", platformRefs: {}, description: "Borde de error" }, { id: "control-selected-bg", name: "control.selected.background", component: "Selection", reference: "semantic:selected-surface", platformRefs: {}, description: "Control seleccionado" },
-  { id: "card-radius", name: "card.container.radius", component: "Card", reference: "primitive:radii.md", platformRefs: {}, description: "Radio estable de card" }, { id: "control-radius", name: "control.radius", component: "Controls", reference: "primitive:radii.sm", platformRefs: {}, description: "Radio estable de controles" }, { id: "card-shadow", name: "card.container.shadow", component: "Card", reference: "primitive:shadows.sm", platformRefs: {}, description: "Sombra estable de card" },
+  componentToken("button-primary-bg", "button.primary.background", "Button", "semantic:action-primary", "Fondo primario"),
+  componentToken("button-primary-fg", "button.primary.foreground", "Button", "semantic:text-on-action", "Contenido sobre acción"),
+  componentToken("button-primary-hover", "button.primary.hover", "Button", "semantic:action-hover", "Estado hover"),
+  componentToken("button-primary-pressed", "button.primary.pressed", "Button", "semantic:action-pressed", "Estado presionado"),
+  componentToken("button-radius", "button.primary.radius", "Button", "primitive:radii.sm", "Radio del control"),
+  componentToken("button-destructive-bg", "button.destructive.background", "Button", "semantic:feedback-destructive", "Acción destructiva"),
+  componentToken("link-fg", "link.default.foreground", "Link", "semantic:action-primary", "Texto del vínculo"),
+  componentToken("link-focus", "link.focus.ring", "Link", "semantic:focus-ring", "Foco del vínculo"),
+  ...["input", "textarea", "select"].flatMap((component) => [
+    componentToken(`${component}-bg`, `${component}.default.background`, component, "semantic:surface-raised", "Fondo"),
+    componentToken(`${component}-border`, `${component}.default.border`, component, "semantic:border-subtle", "Borde"),
+    componentToken(`${component}-focus`, `${component}.focus.border`, component, "semantic:focus-ring", "Foco"),
+    componentToken(`${component}-error`, `${component}.error.border`, component, "semantic:feedback-destructive", "Error"),
+  ]),
+  componentToken("input-fg", "input.default.foreground", "Input", "semantic:text-primary", "Contenido"),
+  componentToken("input-disabled-bg", "input.disabled.background", "Input", "semantic:disabled-surface", "Fondo deshabilitado"),
+  componentToken("input-disabled-fg", "input.disabled.foreground", "Input", "semantic:disabled-content", "Contenido deshabilitado"),
+  componentToken("input-focus-border", "input.focus.border", "Input", "semantic:focus-ring", "Borde de foco"),
+  componentToken("input-error-border", "input.error.border", "Input", "semantic:feedback-destructive", "Borde de error"),
+  componentToken("input-focus-ring", "input.focus.ring", "Input", "semantic:focus-ring", "Anillo de foco"),
+  componentToken("input-error-fg", "input.error.foreground", "Input", "semantic:feedback-destructive", "Texto de error"),
+  componentToken("select-menu-bg", "select.menu.background", "Select", "semantic:surface-raised", "Fondo del menú"),
+  ...["checkbox", "radio"].flatMap((component) => [
+    componentToken(`${component}-border`, `${component}.default.border`, component, "semantic:border-strong", "Borde"),
+    componentToken(`${component}-selected`, `${component}.selected.background`, component, "semantic:selected-border", "Selección"),
+    componentToken(`${component}-focus`, `${component}.focus.ring`, component, "semantic:focus-ring", "Foco"),
+    componentToken(`${component}-error`, `${component}.error.border`, component, "semantic:feedback-destructive", "Error"),
+  ]),
+  componentToken("checkbox-fg", "checkbox.selected.foreground", "Checkbox", "semantic:text-on-action", "Marca seleccionada"),
+  componentToken("checkbox-radius", "checkbox.radius", "Checkbox", "primitive:radii.sm", "Radio"),
+  componentToken("control-selected-bg", "control.selected.background", "Selection", "semantic:selected-surface", "Selección compartida"),
+  componentToken("control-radius", "control.radius", "Controls", "primitive:radii.sm", "Radio compartido"),
+  componentToken("switch-track", "switch.track.background", "Switch", "semantic:disabled-surface", "Track"),
+  componentToken("switch-selected", "switch.track.selected", "Switch", "semantic:selected-border", "Track seleccionado"),
+  componentToken("switch-thumb", "switch.thumb.background", "Switch", "semantic:surface-raised", "Thumb"),
+  componentToken("switch-focus", "switch.focus.ring", "Switch", "semantic:focus-ring", "Foco"),
+  componentToken("tabs-fg", "tabs.item.foreground", "Tabs", "semantic:text-muted", "Item"),
+  componentToken("tabs-selected", "tabs.item.selected", "Tabs", "semantic:text-primary", "Item seleccionado"),
+  componentToken("tabs-indicator", "tabs.item.indicator", "Tabs", "semantic:selected-border", "Indicador"),
+  componentToken("tabs-focus", "tabs.focus.ring", "Tabs", "semantic:focus-ring", "Foco"),
+  componentToken("badge-neutral-bg", "badge.neutral.background", "Badge", "semantic:surface-raised", "Fondo neutral"),
+  componentToken("badge-selected-bg", "badge.selected.background", "Badge", "semantic:selected-surface", "Fondo seleccionado"),
+  componentToken("alert-info-border", "alert.info.border", "Alert", "semantic:focus-ring", "Borde informativo"),
+  ...["success", "warning", "error"].flatMap((state) => [
+    componentToken(`badge-${state}-fg`, `badge.${state}.foreground`, "Badge", `semantic:feedback-${state === "error" ? "destructive" : state}`, "Contenido"),
+    componentToken(`badge-${state}-bg`, `badge.${state}.background`, "Badge", `semantic:feedback-${state === "error" ? "destructive" : state}`, "Fondo tonal"),
+    componentToken(`alert-${state}-fg`, `alert.${state}.foreground`, "Alert", `semantic:feedback-${state === "error" ? "destructive" : state}`, "Contenido"),
+    componentToken(`alert-${state}-bg`, `alert.${state}.background`, "Alert", `semantic:feedback-${state === "error" ? "destructive" : state}`, "Fondo tonal"),
+  ]),
+  componentToken("badge-radius", "badge.radius", "Badge", "primitive:radii.pill", "Radio"),
+  componentToken("card-bg", "card.container.background", "Card", "semantic:surface-raised", "Fondo"),
+  componentToken("card-border", "card.container.border", "Card", "semantic:border-subtle", "Borde"),
+  componentToken("card-radius", "card.container.radius", "Card", "primitive:radii.md", "Radio"),
+  componentToken("card-shadow", "card.container.shadow", "Card", "primitive:shadows.sm", "Sombra"),
+  componentToken("card-selected", "card.selected.border", "Card", "semantic:selected-border", "Selección"),
+  componentToken("table-header", "table.header.background", "Table", "semantic:surface-raised", "Cabecera"),
+  componentToken("table-row", "table.row.background", "Table", "semantic:surface-default", "Fila"),
+  componentToken("table-row-hover", "table.row.hover", "Table", "semantic:selected-surface", "Hover"),
+  componentToken("table-row-selected", "table.row.selected", "Table", "semantic:selected-surface", "Selección"),
+  componentToken("table-divider", "table.divider.border", "Table", "semantic:border-subtle", "Divisor"),
+  componentToken("divider-border", "divider.default.border", "Divider", "semantic:border-subtle", "Divisor"),
 ];
 
 const baseLayout: LayoutValues = { columns: 4, margin: 16, gutter: 16, maxWidth: 480, breakpoint: 0, baseline: 8, baselineEnabled: true };
@@ -98,7 +156,7 @@ const defaultPlatforms = (): Record<PlatformId, PlatformConfig> => ({
 const defaultScales = (): Record<ScaleGroupKey, ScaleToken[]> => ({ spacing: tokenList([["2xs", "4px"], ["xs", "8px"], ["sm", "12px"], ["md", "16px"], ["lg", "24px"], ["xl", "32px"], ["2xl", "48px"], ["3xl", "64px"]]), dimensions: tokenList([["control-sm", "32px"], ["control-md", "40px"], ["control-lg", "48px"]]), radii: tokenList([["sm", "6px"], ["md", "10px"], ["lg", "16px"], ["pill", "999px"]]), borders: tokenList([["subtle", "1px"], ["strong", "2px"]]), shadows: tokenList([["sm", "0 1px 3px rgba(24,24,27,.10)"], ["md", "0 8px 24px rgba(24,24,27,.14)"], ["lg", "0 20px 50px rgba(24,24,27,.18)"]]), opacity: tokenList([["disabled-interaction", "0.42"], ["temporary-overlay", "0.68"], ["solid", "1"]]) });
 
 export function createInitialProject(): DesignSystemProject {
-  return { schemaVersion: 3, projectState: "validated", id: "ds-starter", meta: { name: "Sistema inicial validado", description: "Una base completa y contrastada para explorar antes del handoff.", brandMark: "DS", updatedAt: new Date().toISOString() }, foundations: { colors: [makePalette("Indigo", "#4F46E5"), makePalette("Amber", "#D97706"), makePalette("Slate", "#64748B"), makePalette("Rose", "#E11D48"), makePalette("Emerald", "#059669")], typography: defaultTypography(), scales: defaultScales(), layoutBase: baseLayout, customFoundations: [] }, semanticTokens: defaultSemanticTokens(), componentTokens: defaultComponentTokens(), themes: [{ id: "light", name: "Claro" }, { id: "dark", name: "Oscuro" }], platforms: defaultPlatforms(), implementationProfile: { web: true, ios: true, android: true } };
+  return { schemaVersion: 3, projectState: "validated", id: "ds-starter", meta: { name: "Sistema inicial validado", description: "Una base completa y contrastada para explorar antes del handoff.", brandMark: "DS", updatedAt: new Date().toISOString() }, foundations: { colors: [makePalette("Indigo", "#4F46E5"), makePalette("Amber", "#D97706"), makeNeutralPalette(), makePalette("Rose", "#E11D48"), makePalette("Emerald", "#059669")], typography: defaultTypography(), scales: defaultScales(), layoutBase: baseLayout, customFoundations: [] }, semanticTokens: defaultSemanticTokens(), componentTokens: defaultComponentTokens(), themes: [{ id: "light", name: "Claro" }, { id: "dark", name: "Oscuro" }], platforms: defaultPlatforms(), implementationProfile: { web: true, ios: true, android: true } };
 }
 export function createBlankProject(): DesignSystemProject {
   const base = createInitialProject();
@@ -113,7 +171,7 @@ export function resolveSemantic(project: DesignSystemProject, id: string, themeI
 export function resolveScaleToken(project: DesignSystemProject, reference: string) { const [group, name] = reference.replace("primitive:", "").split(".") as [ScaleGroupKey, string]; return project.foundations.scales[group]?.find((token) => token.name === name)?.value || ""; }
 export function resolveComponent(project: DesignSystemProject, id: string, themeId: string, platform: PlatformId) { const token = project.componentTokens.find((item) => item.id === id || item.name === id); if (!token) return ""; const reference = token.platformRefs[platform] || token.reference; return reference.startsWith("semantic:") ? resolveSemantic(project, reference.slice(9), themeId, platform) : reference.startsWith("primitive:") ? resolveScaleToken(project, reference) : ""; }
 export function allColorReferences(project: DesignSystemProject) {
-  const paletteReferences = project.foundations.colors.flatMap((item) => colorSteps.map((step) => `${item.name}.${step}`));
+  const paletteReferences = project.foundations.colors.flatMap((item) => Object.keys(item.scale).map((step) => `${item.name}.${step}`));
   const assignedReferences = project.semanticTokens.flatMap((token) => [token.defaultRef, ...Object.values(token.themeRefs), ...Object.values(token.platformRefs)]).filter((reference): reference is string => Boolean(reference) && !reference.startsWith("#"));
   return [...new Set([...paletteReferences, ...assignedReferences])];
 }
@@ -125,12 +183,13 @@ export function migrateProject(input: unknown): DesignSystemProject {
   const fallback = createInitialProject();
   if (!input || typeof input !== "object") return fallback;
   const candidate = input as LegacyProject;
+  const mergeComponents = (tokens: ComponentToken[] = []) => [...tokens, ...defaultComponentTokens().filter((fallbackToken) => !tokens.some((token) => token.id === fallbackToken.id || token.name === fallbackToken.name))];
   if (candidate.id === "ds-nova" && candidate.meta?.name === "Nova Design System") return fallback;
   if (candidate.schemaVersion === 3 && candidate.meta && candidate.foundations) {
-    return { ...fallback, ...candidate, schemaVersion: 3, meta: { ...fallback.meta, ...candidate.meta }, foundations: { ...fallback.foundations, ...candidate.foundations, scales: { ...fallback.foundations.scales, ...candidate.foundations.scales } }, platforms: Object.fromEntries(platformOrder.map((id) => [id, { ...fallback.platforms[id], ...candidate.platforms?.[id], scaleOverrides: { ...fallback.platforms[id].scaleOverrides, ...candidate.platforms?.[id]?.scaleOverrides } }])) as Record<PlatformId, PlatformConfig>, implementationProfile: { ...fallback.implementationProfile, ...candidate.implementationProfile } } as DesignSystemProject;
+    return { ...fallback, ...candidate, schemaVersion: 3, componentTokens: mergeComponents(candidate.componentTokens), meta: { ...fallback.meta, ...candidate.meta }, foundations: { ...fallback.foundations, ...candidate.foundations, scales: { ...fallback.foundations.scales, ...candidate.foundations.scales } }, platforms: Object.fromEntries(platformOrder.map((id) => [id, { ...fallback.platforms[id], ...candidate.platforms?.[id], scaleOverrides: { ...fallback.platforms[id].scaleOverrides, ...candidate.platforms?.[id]?.scaleOverrides } }])) as Record<PlatformId, PlatformConfig>, implementationProfile: { ...fallback.implementationProfile, ...candidate.implementationProfile } } as DesignSystemProject;
   }
   const legacyColors = candidate.foundations?.colors?.map((item) => { const base = item.base || "#4F46E5"; const anchorStep = item.anchorStep || suggestedAnchor(base); return { id: item.id || uid(), name: item.name || "Paleta", base, anchorStep, range: item.range || .78, scale: item.scale || generateColorScale(base, anchorStep), manualSteps: item.manualSteps || [] }; });
   const importedSemantics = candidate.semanticTokens || [];
   const completedSemantics = [...importedSemantics, ...defaultSemanticTokens().filter((token) => !importedSemantics.some((item) => item.id === token.id))];
-  return { ...fallback, id: candidate.id || fallback.id, meta: { ...fallback.meta, ...candidate.meta, updatedAt: new Date().toISOString() }, foundations: { ...fallback.foundations, ...candidate.foundations, colors: legacyColors?.length ? legacyColors : fallback.foundations.colors, typography: { ...fallback.foundations.typography, ...candidate.foundations?.typography }, scales: { spacing: candidate.foundations?.scales?.spacing || candidate.foundations?.spacing || fallback.foundations.scales.spacing, dimensions: candidate.foundations?.scales?.dimensions || candidate.foundations?.dimensions || fallback.foundations.scales.dimensions, radii: candidate.foundations?.scales?.radii || candidate.foundations?.radii || fallback.foundations.scales.radii, borders: candidate.foundations?.scales?.borders || candidate.foundations?.borders || fallback.foundations.scales.borders, shadows: candidate.foundations?.scales?.shadows || candidate.foundations?.shadows || fallback.foundations.scales.shadows, opacity: candidate.foundations?.scales?.opacity || candidate.foundations?.opacity || fallback.foundations.scales.opacity }, customFoundations: candidate.foundations?.customFoundations || candidate.foundations?.customGroups?.map((group) => ({ ...group, description: "Foundation personalizado" })) || [] }, semanticTokens: completedSemantics, componentTokens: candidate.componentTokens?.length ? candidate.componentTokens : defaultComponentTokens(), themes: candidate.themes?.length ? candidate.themes : fallback.themes, platforms: fallback.platforms, projectState: "validated", schemaVersion: 3 };
+  return { ...fallback, id: candidate.id || fallback.id, meta: { ...fallback.meta, ...candidate.meta, updatedAt: new Date().toISOString() }, foundations: { ...fallback.foundations, ...candidate.foundations, colors: legacyColors?.length ? legacyColors : fallback.foundations.colors, typography: { ...fallback.foundations.typography, ...candidate.foundations?.typography }, scales: { spacing: candidate.foundations?.scales?.spacing || candidate.foundations?.spacing || fallback.foundations.scales.spacing, dimensions: candidate.foundations?.scales?.dimensions || candidate.foundations?.dimensions || fallback.foundations.scales.dimensions, radii: candidate.foundations?.scales?.radii || candidate.foundations?.radii || fallback.foundations.scales.radii, borders: candidate.foundations?.scales?.borders || candidate.foundations?.borders || fallback.foundations.scales.borders, shadows: candidate.foundations?.scales?.shadows || candidate.foundations?.shadows || fallback.foundations.scales.shadows, opacity: candidate.foundations?.scales?.opacity || candidate.foundations?.opacity || fallback.foundations.scales.opacity }, customFoundations: candidate.foundations?.customFoundations || candidate.foundations?.customGroups?.map((group) => ({ ...group, description: "Foundation personalizado" })) || [] }, semanticTokens: completedSemantics, componentTokens: mergeComponents(candidate.componentTokens), themes: candidate.themes?.length ? candidate.themes : fallback.themes, platforms: fallback.platforms, projectState: "validated", schemaVersion: 3 };
 }

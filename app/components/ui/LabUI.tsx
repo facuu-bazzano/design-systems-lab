@@ -9,6 +9,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { CircleCheck, CircleX, TriangleAlert } from "lucide-react";
 import { ActivityIcon, CheckIcon, ChevronDownIcon, ExportIcon, FolderIcon, InfoIcon, SearchIcon } from "./Icons";
 
 type ButtonProps = ComponentPropsWithoutRef<"button"> & { variant?: "primary" | "secondary" | "quiet" | "danger"; size?: "sm" | "md" | "lg" };
@@ -46,8 +47,8 @@ export function Checkbox({ checked, onCheckedChange, label, disabled }: { checke
 export function RadioGroup({ value, onValueChange, options, disabled }: { value: string; onValueChange: (value: string) => void; options: SelectOption[]; disabled?: boolean }) {
   return <RadioPrimitive.Root className="ui-radio-group" value={value} onValueChange={onValueChange} disabled={disabled}>{options.map((option) => <label key={option.value} className="ui-control-line"><RadioPrimitive.Item className="ui-radio" value={option.value}><RadioPrimitive.Indicator /></RadioPrimitive.Item><span>{option.label}{option.meta ? <small>{option.meta}</small> : null}</span></label>)}</RadioPrimitive.Root>;
 }
-export function Switch({ checked, onCheckedChange, label, disabled }: { checked: boolean; onCheckedChange: (checked: boolean) => void; label: ReactNode; disabled?: boolean }) {
-  return <label className={`ui-control-line ${disabled ? "is-disabled" : ""}`}><SwitchPrimitive.Root className="ui-switch" checked={checked} onCheckedChange={onCheckedChange} disabled={disabled}><SwitchPrimitive.Thumb /></SwitchPrimitive.Root><span>{label}</span></label>;
+export function Switch({ checked, onCheckedChange, label, ariaLabel, disabled }: { checked: boolean; onCheckedChange: (checked: boolean) => void; label?: ReactNode; ariaLabel?: string; disabled?: boolean }) {
+  return <label className={`ui-control-line ${!label ? "is-switch-only" : ""} ${disabled ? "is-disabled" : ""}`}><SwitchPrimitive.Root aria-label={ariaLabel || (typeof label === "string" ? label : undefined)} className="ui-switch" checked={checked} onCheckedChange={onCheckedChange} disabled={disabled}><SwitchPrimitive.Thumb /></SwitchPrimitive.Root>{label ? <span>{label}</span> : null}</label>;
 }
 export function Toggle({ pressed, onPressedChange, children }: { pressed: boolean; onPressedChange: (pressed: boolean) => void; children: ReactNode }) {
   return <Button variant={pressed ? "primary" : "secondary"} aria-pressed={pressed} onClick={() => onPressedChange(!pressed)}>{children}</Button>;
@@ -56,7 +57,7 @@ export function Toggle({ pressed, onPressedChange, children }: { pressed: boolea
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) { return <section className={`ui-card ${className}`}>{children}</section>; }
 export function Table({ children, className = "" }: { children: ReactNode; className?: string }) { return <div className="ui-table-wrap"><table className={`ui-table ${className}`}>{children}</table></div>; }
 export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "info" | "success" | "warning" | "danger"; children: ReactNode }) { return <span className={`ui-badge ui-badge-${tone}`}>{children}</span>; }
-export function Alert({ tone = "info", title, children, action }: { tone?: "info" | "success" | "warning" | "danger"; title: string; children: ReactNode; action?: ReactNode }) { return <div className={`ui-alert ui-alert-${tone}`}><InfoIcon /><div><b>{title}</b><p>{children}</p>{action}</div></div>; }
+export function Alert({ tone = "info", title, children, action }: { tone?: "info" | "success" | "warning" | "danger"; title: string; children: ReactNode; action?: ReactNode }) { const Icon = tone === "success" ? CircleCheck : tone === "warning" ? TriangleAlert : tone === "danger" ? CircleX : InfoIcon; return <div className={`ui-alert ui-alert-${tone}`}><Icon /><div><b>{title}</b><p>{children}</p>{action}</div></div>; }
 export function SectionHeading({ title, description, action, level = 1 }: { title: string; description?: string; action?: ReactNode; level?: 1 | 2 }) {
   const Title = level === 1 ? "h1" : "h2";
   return <header className={`ui-section-heading level-${level}`}><div><Title>{title}</Title>{description ? <p>{description}</p> : null}</div>{action}</header>;
@@ -85,5 +86,5 @@ export function ExportMenu({ onConfigure, onQuickExport }: { onConfigure: () => 
 }
 
 export function LabHeader({ projectName, health, themeAction, projectMenu, exportMenu }: { projectName: string; health: ReactNode; themeAction: ReactNode; projectMenu: ReactNode; exportMenu: ReactNode }) {
-  return <header className="ui-header"><div className="ui-brand"><span>DS</span><b>Laboratorio</b></div><div className="ui-project-name"><span>{projectName}</span>{health}</div><div className="ui-header-actions">{projectMenu}{themeAction}{exportMenu}</div></header>;
+  return <header className="ui-header"><div className="ui-project-name"><span>{projectName}</span>{health}</div><div className="ui-header-actions">{projectMenu}{exportMenu}<span className="ui-header-divider" />{themeAction}</div></header>;
 }

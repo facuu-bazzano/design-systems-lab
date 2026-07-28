@@ -10,7 +10,7 @@ test("exports the complete laboratory as static HTML", async () => {
   const html = await readFile(new URL("index.html", outputRoot), "utf8");
   assert.match(html, /<title>Laboratorio de Sistemas de Dise.o<\/title>/i);
   assert.match(html, /Sistema inicial validado/);
-  assert.match(html, /Elegí cómo empezar/);
+  assert.match(html, /Elegí una base para empezar/);
   assert.match(html, /Proyecto en blanco/);
   assert.doesNotMatch(html, /lab-sidebar|Handoff/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
@@ -46,7 +46,7 @@ test("keeps v3 capabilities in one serializable project model", async () => {
   assert.match(page, /localStorage\.setItem/);
   assert.match(page, /importProject/);
   assert.match(page, /Configurar exportación/);
-  assert.match(page, /type MainSection = "project" \| "foundations" \| "system" \| "evaluate"/);
+  assert.match(page, /type MainSection = "project" \| "colors" \| "typography" \| "scales" \| "semantics" \| "components" \| "catalog" \| "health"/);
   assert.doesNotMatch(page, /Handoff/);
   assert.match(catalog, /@radix-ui\/react-checkbox/);
   assert.match(catalog, /@radix-ui\/react-radio-group/);
