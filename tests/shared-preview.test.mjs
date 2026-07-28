@@ -21,3 +21,11 @@ test("forced catalog states remain bounded and respect real disabled semantics",
   assert.doesNotMatch(previews, /open=\{forcedOpen\}/);
   assert.match(previews, /disabled=\{state === "Disabled"\}/);
 });
+
+test("health correction and color palette workflows expose their completion actions", async () => {
+  const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
+
+  assert.match(page, /Marcar .* como validada/);
+  assert.match(page, /Eliminar definitivamente/);
+  assert.match(page, /Método para crear paleta/);
+});

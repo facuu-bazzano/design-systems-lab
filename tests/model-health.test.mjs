@@ -14,6 +14,7 @@ async function loadTs(path, dependencies = {}) {
 }
 
 const model = await loadTs("app/lib/model.ts");
+const colorPresets = await loadTs("app/lib/color-presets.ts", { "./model": model });
 const registry = await loadTs("app/lib/catalog-registry.ts");
 const resolver = await loadTs("app/lib/token-resolver.ts", { "./model": model, react: {} });
 const health = await loadTs("app/lib/health.ts", { "./model": model, "./token-resolver": resolver });
@@ -37,6 +38,29 @@ test("validated starter has high health and no blockers", () => {
   assert.equal(result.counts.blocking, 0);
   assert.equal(result.counts.warning, 0, result.findings.map((finding) => `${finding.mode}/${finding.area}: ${finding.cause}`).join("\n"));
   assert.equal(result.score, 100);
+});
+
+test("responsive review findings keep an exact platform correction target", () => {
+  const project = model.createInitialProject();
+  project.platforms.desktop.enabled = true;
+  project.platforms.desktop.proposalPending = true;
+  const pending = health.analyzeProject(project);
+  const finding = pending.findings.find((item) => item.id === "platform-desktop");
+  assert.equal(pending.score, 95);
+  assert.equal(finding.section, "scales");
+  assert.equal(finding.platformId, "desktop");
+  project.platforms.desktop.proposalPending = false;
+  assert.equal(health.analyzeProject(project).score, 100);
+});
+
+test("manual and preset palettes remain editable foundations", () => {
+  const manual = model.makeManualPalette("Marca", { 100: "#F5F5F5", 500: "#3366FF", 900: "#101828" });
+  assert.equal(manual.creationMethod, "manual");
+  assert.equal(manual.scale[500], "#3366FF");
+  const ant = colorPresets.paletteFromPreset(colorPresets.colorPresets.find((preset) => preset.id === "ant-blue"));
+  assert.equal(ant.creationMethod, "preset");
+  assert.equal(ant.scale[600], "#1677FF");
+  assert.equal(ant.origin, "Ant Design");
 });
 
 test("blank project is pending rather than failed", () => {

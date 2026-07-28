@@ -3,7 +3,7 @@ export type LabSection = "project" | "colors" | "typography" | "scales" | "seman
 export type ScaleGroupKey = "spacing" | "dimensions" | "radii" | "borders" | "shadows" | "opacity";
 export type ProjectState = "validated" | "blank";
 export type ScaleToken = { id: string; name: string; value: string };
-export type ColorPalette = { id: string; name: string; base: string; anchorStep: number; range: number; scale: Record<string, string>; manualSteps: string[] };
+export type ColorPalette = { id: string; name: string; base: string; anchorStep: number; range: number; scale: Record<string, string>; manualSteps: string[]; origin?: string; sourceUrl?: string; creationMethod?: "generated" | "manual" | "preset" };
 export type TypeLevel = { id: string; name: string; size: number; weight: number; lineHeight: number; tracking: number };
 export type TypographyFoundation = { family: string; source: "system" | "google" | "custom"; availableWeights: number[]; styles: string[]; base: { size: number; weight: number; lineHeight: number; tracking: number }; ratioName: string; ratio: number; levels: TypeLevel[] };
 export type SemanticToken = { id: string; name: string; category: string; defaultRef: string; themeRefs: Record<string, string>; platformRefs: Partial<Record<PlatformId, string>>; description: string };
@@ -56,7 +56,15 @@ export function generateColorScale(base: string, anchorStep = suggestedAnchor(ba
     return [step, mixHex(base, 0, Math.min(.82, ((index - anchorIndex) / Math.max(colorSteps.length - anchorIndex, 1)) * range + .02))];
   }));
 }
-export function makePalette(name: string, base: string): ColorPalette { const anchorStep = suggestedAnchor(base); return { id: uid(), name, base: base.toUpperCase(), anchorStep, range: .78, scale: generateColorScale(base, anchorStep, .78), manualSteps: [] }; }
+export function makePalette(name: string, base: string): ColorPalette { const anchorStep = suggestedAnchor(base); return { id: uid(), name, base: base.toUpperCase(), anchorStep, range: .78, scale: generateColorScale(base, anchorStep, .78), manualSteps: [], creationMethod: "generated" }; }
+export function makeManualPalette(name: string, scale: Record<string, string>, origin = "Manual"): ColorPalette {
+  const entries = Object.entries(scale).filter(([step, color]) => step.trim() && /^#[0-9a-f]{6}$/i.test(color));
+  const normalized = Object.fromEntries(entries.map(([step, color]) => [step.trim(), color.toUpperCase()]));
+  const steps = Object.keys(normalized).sort((a, b) => Number(a) - Number(b));
+  const anchorStep = Number(steps.find((step) => Number(step) >= 500) || steps[Math.floor(steps.length / 2)] || 500);
+  const base = normalized[String(anchorStep)] || normalized[steps[0]] || "#71717A";
+  return { id: uid(), name: name.trim() || "Paleta manual", base, anchorStep, range: .78, scale: normalized, manualSteps: steps, origin, creationMethod: "manual" };
+}
 function makeNeutralPalette(): ColorPalette { return { id: uid(), name: "Slate", base: "#71717A", anchorStep: 500, range: .78, manualSteps: [], scale: { "50": "#FAFAFA", "100": "#F4F4F5", "200": "#E4E4E7", "300": "#D4D4D8", "400": "#A1A1AA", "500": "#71717A", "600": "#52525B", "700": "#3F3F46", "800": "#27272A", "900": "#18181B" } }; }
 
 export const fontOptions = [
