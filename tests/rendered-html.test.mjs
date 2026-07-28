@@ -30,6 +30,19 @@ test("prefixes every root asset for the GitHub Pages repository path", async () 
   }
 });
 
+test("publishes Storybook below the application without breaking direct entry points", async () => {
+  const storybook = await readFile(new URL("storybook/index.html", outputRoot), "utf8");
+  const iframe = await readFile(new URL("storybook/iframe.html", outputRoot), "utf8");
+  assert.match(storybook, /Storybook/);
+  const iframeAssets = [...iframe.matchAll(/(?:href|src)="(\.\/[^"?]+)(?:\?[^" ]*)?"/g)]
+    .map((match) => match[1]);
+  assert.ok(iframeAssets.some((asset) => asset.startsWith("./assets/")));
+  for (const asset of iframeAssets) {
+    await access(new URL(`storybook/${asset.slice(2)}`, outputRoot));
+  }
+  await access(new URL("storybook/404.html", outputRoot));
+});
+
 test("keeps v3 capabilities in one serializable project model", async () => {
   const model = await readFile(new URL("app/lib/model.ts", projectRoot), "utf8");
   const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
