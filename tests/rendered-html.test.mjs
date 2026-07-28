@@ -34,6 +34,7 @@ test("keeps v3 capabilities in one serializable project model", async () => {
   const model = await readFile(new URL("app/lib/model.ts", projectRoot), "utf8");
   const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
   const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
+  const previews = await readFile(new URL("app/components/ProjectPreviews.tsx", projectRoot), "utf8");
   const health = await readFile(new URL("app/lib/health.ts", projectRoot), "utf8");
   const exporters = await readFile(new URL("app/lib/exporters.ts", projectRoot), "utf8");
   const ui = await readFile(new URL("app/components/ui/LabUI.tsx", projectRoot), "utf8");
@@ -48,10 +49,10 @@ test("keeps v3 capabilities in one serializable project model", async () => {
   assert.match(page, /Configurar exportación/);
   assert.match(page, /type MainSection = "project" \| "colors" \| "typography" \| "scales" \| "semantics" \| "components" \| "catalog" \| "health"/);
   assert.doesNotMatch(page, /Handoff/);
-  assert.match(catalog, /@radix-ui\/react-checkbox/);
+  assert.match(previews, /@radix-ui\/react-checkbox/);
   assert.match(catalog, /@radix-ui\/react-radio-group/);
   assert.match(catalog, /@radix-ui\/react-switch/);
-  assert.match(catalog, /@radix-ui\/react-select/);
+  assert.match(previews, /@radix-ui\/react-select/);
   assert.match(catalog, /@radix-ui\/react-tabs/);
   assert.match(catalog, /catalogRegistry/);
   assert.match(catalog, /TokenInspector/);
