@@ -70,5 +70,5 @@ export function ProjectAlertPreview({ state, children }: { state: string; childr
   const normalized = state.toLowerCase();
   const Icon = normalized === "success" ? CircleCheck : normalized === "warning" ? TriangleAlert : normalized === "error" ? CircleX : Info;
   const title = normalized === "success" ? "Éxito" : normalized === "warning" ? "Atención" : normalized === "error" ? "Error" : "Información";
-  return <div className={`project-alert ${projectStateClass(state)}`}><Icon aria-hidden="true" /><div><b>{title}</b><span>{children || "El sistema comunica este estado con color, icono y texto."}</span></div></div>;
+  return <div className={`project-alert ${projectStateClass(state)}`} role={normalized === "error" ? "alert" : "status"}><Icon aria-hidden="true" /><div><b>{title}</b><span>{children || "El sistema comunica este estado con color, icono y texto."}</span></div></div>;
 }

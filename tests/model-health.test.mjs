@@ -112,4 +112,8 @@ test("exports selective tokens, shared CSS variables and structured documentatio
   assert.match(documentation, /Tooltip/);
   assert.ok(registry.catalogRegistry.length >= 29);
   assert.match(documentation, /\.palette span code\{font-size:12px\}/);
+  assert.match(documentation, /class="doc-alert" role="status"><svg/);
+  assert.match(documentation, /\.doc-alert\{display:grid;grid-template-columns:auto 1fr/);
+  assert.match(documentation, /var\(--ds-success\) 65%,var\(--ds-text\)/);
+  assert.doesNotMatch(documentation, /\.doc-alert\{[^}]*border-left/);
 });

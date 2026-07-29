@@ -7,10 +7,14 @@ const projectRoot = new URL("../", import.meta.url);
 test("catalog and health reuse the same project preview components", async () => {
   const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
   const health = await readFile(new URL("app/components/HealthView.tsx", projectRoot), "utf8");
+  const css = await readFile(new URL("app/globals.css", projectRoot), "utf8");
 
   assert.match(catalog, /ProjectAlertPreview/);
   assert.match(health, /ProjectAlertPreview/);
   assert.doesNotMatch(health, /scenario-alert/);
+  assert.doesNotMatch(css, /\.ds-alert|\.finding-item|\.scenario-alert/);
+  assert.equal(css.match(/\.project-alert\{[^}]*border:/g)?.length, 1);
+  assert.doesNotMatch(css, /\.project-alert\{[^}]*border-left/);
 });
 
 test("forced catalog states remain bounded and respect real disabled semantics", async () => {
