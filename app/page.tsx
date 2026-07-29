@@ -3,6 +3,7 @@
 import { ChangeEvent, CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, ChevronDown, Component, HeartPulse, Layers3, PaintBucket, Trash2, Type, X } from "lucide-react";
 import { Catalog } from "./components/Catalog";
+import { BrandMark } from "./components/BrandMark";
 import { HealthView } from "./components/HealthView";
 import { Alert, Badge, Button, Card, Checkbox, Combobox, ExportMenu, HealthIndicator, IconButton, Input, LabHeader, ProjectMenu, RadioGroup, SectionHeading, Select, Switch, Table, Tabs, Textarea } from "./components/ui/LabUI";
 import { ArrowRightIcon, GridIcon, MoonIcon, SlidersIcon, SunIcon } from "./components/ui/Icons";
@@ -28,7 +29,7 @@ const scalePresetOptions = [
 ];
 
 function Starter({ onChoose }: { onChoose: (kind: "validated" | "blank") => void }) {
-  return <main className="starter-v4"><section><p className="starter-kicker">Laboratorio de Sistemas de Diseño</p><h1>Elegí una base para empezar</h1><p>Después vas a definir el nombre y las plataformas del proyecto antes de entrar al laboratorio.</p><div className="starter-options"><Card><Badge tone="success">Recomendado</Badge><h2>Sistema inicial validado</h2><p>Una base completa, contrastada y editable para explorar decisiones reales desde el primer momento.</p><ul><li>Catálogo funcional desde el inicio</li><li>Contrastes y estados esenciales resueltos</li><li>Mobile como base editable</li></ul><Button variant="primary" size="lg" onClick={() => onChoose("validated")}>Continuar con esta base <ArrowRightIcon /></Button></Card><Card><h2>Proyecto en blanco</h2><p>La estructura del laboratorio sin decisiones visuales preasignadas, con una ruta progresiva de configuración.</p><ul><li>Foundations sin asignaciones</li><li>Tokens pendientes, nunca simulados</li><li>Salud sin evaluar hasta tener una base</li></ul><Button size="lg" onClick={() => onChoose("blank")}>Empezar desde cero <ArrowRightIcon /></Button></Card></div></section></main>;
+  return <main className="starter-v4"><section><BrandMark className="starter-mark" size={76} /><h1>Elegí una base para empezar</h1><p>Después vas a definir el nombre y las plataformas del proyecto antes de entrar al laboratorio.</p><div className="starter-options"><Card><Badge tone="success">Recomendado</Badge><h2>Sistema inicial validado</h2><p>Una base completa, contrastada y editable para explorar decisiones reales desde el primer momento.</p><ul><li>Catálogo funcional desde el inicio</li><li>Contrastes y estados esenciales resueltos</li><li>Mobile como base editable</li></ul><Button variant="primary" size="lg" onClick={() => onChoose("validated")}>Continuar con esta base <ArrowRightIcon /></Button></Card><Card><h2>Proyecto en blanco</h2><p>La estructura del laboratorio sin decisiones visuales preasignadas, con una ruta progresiva de configuración.</p><ul><li>Foundations sin asignaciones</li><li>Tokens pendientes, nunca simulados</li><li>Salud sin evaluar hasta tener una base</li></ul><Button size="lg" onClick={() => onChoose("blank")}>Empezar desde cero <ArrowRightIcon /></Button></Card></div></section></main>;
 }
 
 function ProjectView({ project, update }: { project: DesignSystemProject; update: (recipe: (current: DesignSystemProject) => DesignSystemProject) => void }) {
@@ -234,7 +235,7 @@ export default function Home() {
     openTokens(finding.target || finding.area);
   };
   if (!active && !setupOpen) return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}><Starter onChoose={choose} /></div>;
-  if (!active && setupOpen) return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}><main className="setup-v4"><header><button type="button" onClick={() => setSetupOpen(false)}>Volver</button><span>Paso 2 de 2</span></header><ProjectView project={project} update={update} /><div className="setup-actions"><Button size="lg" onClick={() => setSetupOpen(false)}>Cambiar punto de partida</Button><Button variant="primary" size="lg" onClick={() => { setActive(true); setSetupOpen(false); setSection("colors"); }}>Entrar al laboratorio <ArrowRightIcon /></Button></div></main></div>;
+  if (!active && setupOpen) return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}><main className="setup-v4"><header><div className="setup-header-start"><BrandMark size={38} /><button type="button" onClick={() => setSetupOpen(false)}>Volver</button></div><span>Paso 2 de 2</span></header><ProjectView project={project} update={update} /><div className="setup-actions"><Button size="lg" onClick={() => setSetupOpen(false)}>Cambiar punto de partida</Button><Button variant="primary" size="lg" onClick={() => { setActive(true); setSetupOpen(false); setSection("colors"); }}>Entrar al laboratorio <ArrowRightIcon /></Button></div></main></div>;
   const healthStatus = health.status === "not-evaluated" ? "pending" : health.counts.blocking || health.counts.warning ? "attention" : "ready";
   const renderMain = () => {
     if (section === "project") return <ProjectView project={project} update={update} />;

@@ -10,6 +10,7 @@ import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { CircleCheck, CircleX, TriangleAlert } from "lucide-react";
+import { BrandMark } from "../BrandMark";
 import { ActivityIcon, CheckIcon, ChevronDownIcon, ExportIcon, FolderIcon, InfoIcon, SearchIcon } from "./Icons";
 
 type ButtonProps = ComponentPropsWithoutRef<"button"> & { variant?: "primary" | "secondary" | "quiet" | "danger"; size?: "sm" | "md" | "lg" };
@@ -86,5 +87,5 @@ export function ExportMenu({ onConfigure, onQuickExport }: { onConfigure: () => 
 }
 
 export function LabHeader({ projectName, health, themeAction, projectMenu, exportMenu }: { projectName: string; health: ReactNode; themeAction: ReactNode; projectMenu: ReactNode; exportMenu: ReactNode }) {
-  return <header className="ui-header"><div className="ui-project-name"><span>{projectName}</span>{health}</div><div className="ui-header-actions">{projectMenu}{exportMenu}<span className="ui-header-divider" />{themeAction}</div></header>;
+  return <header className="ui-header"><div className="ui-project-name"><BrandMark className="ui-brand-mark" size={36} /><span>{projectName}</span>{health}</div><div className="ui-header-actions">{projectMenu}{exportMenu}<span className="ui-header-divider" />{themeAction}</div></header>;
 }
