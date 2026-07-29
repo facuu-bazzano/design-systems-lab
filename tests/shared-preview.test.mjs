@@ -52,10 +52,15 @@ test("the shared brand mark replaces the visible laboratory wordmark", async () 
   const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
   const labUi = await readFile(new URL("app/components/ui/LabUI.tsx", projectRoot), "utf8");
   const brandMark = await readFile(new URL("app/components/BrandMark.tsx", projectRoot), "utf8");
+  const layout = await readFile(new URL("app/layout.tsx", projectRoot), "utf8");
 
   assert.match(page, /starter-mark/);
   assert.match(page, /setup-header-start/);
   assert.match(labUi, /ui-brand-mark/);
   assert.match(brandMark, /aria-label="Laboratorio de Sistemas de Dise/);
+  assert.match(brandMark, /logo-for-light-mode\.png/);
+  assert.match(brandMark, /logo-for-dark-mode\.png/);
+  assert.match(layout, /prefers-color-scheme: light/);
+  assert.match(layout, /prefers-color-scheme: dark/);
   assert.doesNotMatch(page, /starter-kicker[^>]*>Laboratorio de Sistemas de Dise/);
 });
