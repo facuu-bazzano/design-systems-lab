@@ -8,6 +8,21 @@ const catalog = readFileSync(new URL("../app/components/Catalog.tsx", import.met
 const health = readFileSync(new URL("../app/components/HealthView.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const figmaMcp = readFileSync(new URL("../app/lib/figma-mcp.ts", import.meta.url), "utf8");
+const icons = readFileSync(new URL("../app/components/ui/Icons.tsx", import.meta.url), "utf8");
+const uiStories = readFileSync(new URL("../app/components/ui/LabUI.stories.tsx", import.meta.url), "utf8");
+
+function relativeLuminance(hex) {
+  const channels = hex.match(/[a-f\d]{2}/gi).map((value) => {
+    const normalized = Number.parseInt(value, 16) / 255;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(a, b) {
+  const [lighter, darker] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (lighter + 0.05) / (darker + 0.05);
+}
 
 test("exportación usa un diálogo modal con nombre, Escape y restauración de foco", () => {
   assert.match(page, /<Dialog open=\{open\}/);
@@ -117,4 +132,51 @@ test("exportación GPT + Figma MCP es explícita, validada y no escribe desde el
   assert.match(figmaMcp, /TARGET_REQUIRED_AT_RUNTIME/);
   assert.match(figmaMcp, /Este paquete no ejecuta acciones por sí mismo/);
   assert.doesNotMatch(figmaMcp, /fetch\(|XMLHttpRequest|Authorization:/);
+});
+
+test("los controles internos comparten estados visibles sin controles nativos divergentes", () => {
+  for (const source of [page, catalog, health, ui]) {
+    assert.doesNotMatch(source, /<select\b|type=["'](?:checkbox|radio)["']/);
+  }
+  assert.match(css, /\.ui-control-line\.is-disabled\{opacity:1/);
+  assert.match(css, /\.ui-switch\{width:44px;height:24px/);
+  assert.match(css, /\.ui-switch\[data-state=checked\] span\{transform:translateX\(20px\)/);
+  assert.match(css, /\.ui-switch:disabled\[data-state=checked\]/);
+  assert.match(css, /\.ui-checkbox>span,\.ui-radio>span\{width:100%;height:100%;display:grid;place-items:center/);
+  assert.match(css, /\.ui-checkbox\[data-state=indeterminate\]/);
+  assert.match(css, /\.ui-checkbox:focus-visible[^}]+\.ui-switch:focus-visible/);
+});
+
+test("el contrato cromático de controles supera 3:1 en claro y oscuro", () => {
+  const requiredPairs = [
+    ["#52525b", "#ffffff"], ["#ffffff", "#52525b"], ["#5b21b6", "#ffffff"],
+    ["#7c3aed", "#ffffff"], ["#71717a", "#ffffff"], ["#a1a1aa", "#18181b"],
+    ["#18181b", "#a1a1aa"], ["#c4b5fd", "#18181b"], ["#8b7bd1", "#18181b"],
+  ];
+  for (const [foreground, background] of requiredPairs) {
+    assert.ok(contrastRatio(foreground, background) >= 3, `${foreground} / ${background} debe alcanzar 3:1`);
+  }
+  for (const token of ["--ui-control-border:#71717a", "--ui-control-track:#52525b", "--ui-control-active-disabled:#7c3aed", "--ui-control-border:#a1a1aa", "--ui-control-track:#a1a1aa", "--ui-control-active-disabled:#8b7bd1"]) {
+    assert.match(css, new RegExp(token));
+  }
+});
+
+test("iconos y chevrons se resuelven desde la librería compartida", () => {
+  assert.match(icons, /Minus as MinusIcon/);
+  assert.match(ui, /<CheckIcon className="ui-checkbox-check"/);
+  assert.match(ui, /<MinusIcon className="ui-checkbox-minus"/);
+  assert.match(page, /<ChevronDownIcon aria-hidden="true"/);
+  assert.doesNotMatch(page, /import\s*\{[^}]*ChevronDown[^}]*\}\s*from\s*["']lucide-react["']/s);
+  assert.match(css, /\.ui-select-trigger>span:last-child svg,\.ui-combobox-trigger>button svg,\.component-token-group-trigger>svg/);
+});
+
+test("Storybook conserva la matriz visual canónica de controles", () => {
+  assert.match(uiStories, /export const ContratoVisualDeControles/);
+  assert.match(uiStories, /data-lab-theme="light"/);
+  assert.match(uiStories, /data-lab-theme="dark"/);
+  assert.match(uiStories, /checked="indeterminate"/);
+  assert.match(uiStories, /<Switch checked[^>]+disabled/);
+  assert.match(uiStories, /<ProjectMenu/);
+  assert.match(uiStories, /<ExportMenu/);
+  assert.match(uiStories, /<HealthIndicator/);
 });

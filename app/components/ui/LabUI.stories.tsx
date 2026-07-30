@@ -1,11 +1,103 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { Alert, Badge, Button, Card, Checkbox, Combobox, Dialog, ExportMenu, HealthIndicator, IconButton, Input, LabHeader, ProjectMenu, RadioGroup, SectionHeading, Select, Switch, Table, Tabs, Textarea } from "./LabUI";
-import { MoonIcon } from "./Icons";
+import { useState, type ReactNode } from "react";
+import { Alert, Badge, Button, Card, Checkbox, Combobox, Dialog, ExportMenu, HealthIndicator, HelpTooltip, IconButton, Input, LabHeader, ProjectMenu, RadioGroup, SectionHeading, Select, Switch, Table, Tabs, Textarea, Toggle } from "./LabUI";
+import { ChevronDownIcon, MoonIcon } from "./Icons";
 
 const meta = { title: "Laboratorio/Biblioteca interna", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+function StateMatrix({ children }: { children: ReactNode }) {
+  return <div className="story-state-matrix">{children}</div>;
+}
+
+function StateCell({ label, className = "", children }: { label: string; className?: string; children: ReactNode }) {
+  return <div className={`story-state-cell ${className}`}><small>{label}</small>{children}</div>;
+}
+
+function ControlContract() {
+  const [checked, setChecked] = useState(true);
+  const [switched, setSwitched] = useState(true);
+  const [radio, setRadio] = useState("a");
+  const [selected, setSelected] = useState("mobile");
+  const [font, setFont] = useState("inter");
+  const [pressed, setPressed] = useState(true);
+  const options = [{ value: "mobile", label: "Mobile" }, { value: "desktop", label: "Desktop" }];
+  const fonts = [{ value: "inter", label: "Inter", meta: "Google Fonts" }, { value: "arial", label: "Arial", meta: "Común" }];
+  return <div className="story-contract">
+    <section className="story-contract-section"><h2>Button e IconButton</h2><StateMatrix>
+      <StateCell label="Default"><Button>Continuar</Button></StateCell>
+      <StateCell label="Hover"><Button className="is-hover">Continuar</Button></StateCell>
+      <StateCell label="Focus"><Button className="is-focus">Continuar</Button></StateCell>
+      <StateCell label="Active"><Button className="is-active">Continuar</Button></StateCell>
+      <StateCell label="Disabled"><Button disabled>Continuar</Button></StateCell>
+      <StateCell label="Destructive"><Button variant="danger">Eliminar</Button></StateCell>
+      <StateCell label="Icon"><IconButton label="Cambiar tema"><MoonIcon /></IconButton></StateCell>
+      <StateCell label="Icon disabled"><IconButton label="Cambiar tema" disabled><MoonIcon /></IconButton></StateCell>
+    </StateMatrix></section>
+    <section className="story-contract-section"><h2>Input y Textarea</h2><StateMatrix>
+      <StateCell label="Default"><Input label="Nombre" defaultValue="Sistema Atlas" /></StateCell>
+      <StateCell label="Focus" className="is-focus"><Input label="Nombre" defaultValue="Sistema Atlas" /></StateCell>
+      <StateCell label="Disabled"><Input label="Nombre" defaultValue="Sistema Atlas" disabled /></StateCell>
+      <StateCell label="Error"><Input label="Nombre" defaultValue="" error="Ingresá un nombre." /></StateCell>
+      <StateCell label="Textarea"><Textarea label="Descripción" defaultValue="Una descripción que conserva ritmo y legibilidad." /></StateCell>
+      <StateCell label="Textarea error"><Textarea label="Descripción" defaultValue="" error="Completá la descripción." /></StateCell>
+    </StateMatrix></section>
+    <section className="story-contract-section"><h2>Select y Combobox</h2><StateMatrix>
+      <StateCell label="Default"><Select label="Plataforma" value={selected} onValueChange={setSelected} options={options} /></StateCell>
+      <StateCell label="Hover"><Select label="Plataforma" value={selected} onValueChange={setSelected} options={options} className="is-hover" /></StateCell>
+      <StateCell label="Focus"><Select label="Plataforma" value={selected} onValueChange={setSelected} options={options} className="is-focus" /></StateCell>
+      <StateCell label="Disabled"><Select label="Plataforma" value={selected} onValueChange={setSelected} options={options} disabled /></StateCell>
+      <StateCell label="Error"><Select label="Plataforma" value={selected} onValueChange={setSelected} options={options} invalid /></StateCell>
+      <StateCell label="Combobox"><Combobox label="Familia" value={font} onValueChange={setFont} options={fonts} /></StateCell>
+      <StateCell label="Combobox focus"><Combobox label="Familia" value={font} onValueChange={setFont} options={fonts} className="is-focus" /></StateCell>
+      <StateCell label="Combobox error"><Combobox label="Familia" value={font} onValueChange={setFont} options={fonts} invalid /></StateCell>
+    </StateMatrix></section>
+    <section className="story-contract-section"><h2>Checkbox</h2><StateMatrix>
+      <StateCell label="Unchecked"><Checkbox checked={false} onCheckedChange={setChecked} label="Incluir color" /></StateCell>
+      <StateCell label="Checked"><Checkbox checked={checked} onCheckedChange={setChecked} label="Incluir color" /></StateCell>
+      <StateCell label="Indeterminate"><Checkbox checked="indeterminate" onCheckedChange={setChecked} label="Selección parcial" /></StateCell>
+      <StateCell label="Focus"><Checkbox className="is-focus" checked onCheckedChange={setChecked} label="Incluir color" /></StateCell>
+      <StateCell label="Disabled off"><Checkbox checked={false} onCheckedChange={setChecked} label="No disponible" disabled /></StateCell>
+      <StateCell label="Disabled on"><Checkbox checked onCheckedChange={setChecked} label="Incluido por sistema" disabled /></StateCell>
+      <StateCell label="Error"><Checkbox checked={false} onCheckedChange={setChecked} label="Aceptación requerida" invalid /></StateCell>
+    </StateMatrix></section>
+    <section className="story-contract-section"><h2>Radio</h2><StateMatrix>
+      <StateCell label="Unchecked"><RadioGroup value="" onValueChange={setRadio} options={[{ value: "a", label: "Opción" }]} /></StateCell>
+      <StateCell label="Checked"><RadioGroup value={radio} onValueChange={setRadio} options={[{ value: "a", label: "Opción" }]} /></StateCell>
+      <StateCell label="Focus" className="is-focus"><RadioGroup value="a" onValueChange={setRadio} options={[{ value: "a", label: "Opción" }]} /></StateCell>
+      <StateCell label="Disabled off"><RadioGroup value="" onValueChange={setRadio} options={[{ value: "a", label: "No disponible" }]} disabled /></StateCell>
+      <StateCell label="Disabled on"><RadioGroup value="a" onValueChange={setRadio} options={[{ value: "a", label: "Heredada" }]} disabled /></StateCell>
+      <StateCell label="Error"><RadioGroup value="" onValueChange={setRadio} options={[{ value: "a", label: "Elegí una opción" }]} invalid /></StateCell>
+    </StateMatrix></section>
+    <section className="story-contract-section"><h2>Switch</h2><StateMatrix>
+      <StateCell label="Off"><Switch checked={false} onCheckedChange={setSwitched} label="Desktop" /></StateCell>
+      <StateCell label="On"><Switch checked={switched} onCheckedChange={setSwitched} label="Desktop" /></StateCell>
+      <StateCell label="Hover"><Switch className="is-hover" checked={false} onCheckedChange={setSwitched} label="Desktop" /></StateCell>
+      <StateCell label="Focus"><Switch className="is-focus" checked onCheckedChange={setSwitched} label="Desktop" /></StateCell>
+      <StateCell label="Disabled off"><Switch checked={false} onCheckedChange={setSwitched} label="No disponible" disabled /></StateCell>
+      <StateCell label="Disabled on"><Switch checked onCheckedChange={setSwitched} label="Mobile · base" disabled /></StateCell>
+      <StateCell label="Error"><Switch checked={false} onCheckedChange={setSwitched} label="Revisión requerida" invalid /></StateCell>
+    </StateMatrix></section>
+    <section className="story-contract-section"><h2>Toggle, Tabs y disclosures</h2><StateMatrix>
+      <StateCell label="Toggle off"><Toggle pressed={false} onPressedChange={setPressed}>Vista simple</Toggle></StateCell>
+      <StateCell label="Toggle on"><Toggle pressed={pressed} onPressedChange={setPressed}>Vista completa</Toggle></StateCell>
+      <StateCell label="Toggle disabled"><Toggle pressed disabled onPressedChange={setPressed}>Vista fijada</Toggle></StateCell>
+      <StateCell label="Tabs"><Tabs value="one" onValueChange={() => {}} ariaLabel="Vista" tabs={[{ value: "one", label: "Resumen" }, { value: "two", label: "Tokens" }]} /></StateCell>
+      <StateCell label="Tab disabled"><Tabs value="one" onValueChange={() => {}} ariaLabel="Vista" tabs={[{ value: "one", label: "Resumen" }, { value: "two", label: "Tokens", disabled: true }]} /></StateCell>
+      <StateCell label="Disclosure"><button type="button" className="component-token-group-trigger" aria-expanded="false"><span><b>Button</b><small>9 tokens</small></span><ChevronDownIcon /></button></StateCell>
+      <StateCell label="Disclosure open"><button type="button" className="component-token-group-trigger" aria-expanded="true"><span><b>Button</b><small>9 tokens</small></span><ChevronDownIcon style={{ transform: "rotate(180deg)" }} /></button></StateCell>
+      <StateCell label="Tooltip"><HelpTooltip label="Más información">Explicación contextual del control.</HelpTooltip></StateCell>
+    </StateMatrix></section>
+    <section className="story-contract-section"><h2>Menus y acciones del header</h2><StateMatrix>
+      <StateCell label="ProjectMenu"><ProjectMenu onImport={() => {}} onDownload={() => {}} onDuplicate={() => {}} /></StateCell>
+      <StateCell label="ExportMenu"><ExportMenu onConfigure={() => {}} onQuickExport={() => {}} /></StateCell>
+      <StateCell label="HealthIndicator"><HealthIndicator score={95} status="attention" summary="Una revisión pendiente" onClick={() => {}} /></StateCell>
+    </StateMatrix></section>
+  </div>;
+}
+
+export const ContratoVisualDeControles: Story = { render: () => <div className="story-theme-pair"><div className="storybook-frame theme-light" data-lab-theme="light"><SectionHeading title="Controles · Claro" description="Matriz visible de estados del sistema interno del Laboratorio." /><ControlContract /></div><div className="storybook-frame theme-dark" data-lab-theme="dark"><SectionHeading title="Controles · Oscuro" description="El mismo contrato conserva posición, contraste, foco y jerarquía." /><ControlContract /></div></div> };
 
 export const AccionesYEstados: Story = { render: () => <div className="story-grid"><Button variant="primary">Primario</Button><Button variant="secondary">Secundario</Button><Button variant="danger">Destructivo</Button><Button disabled>Deshabilitado</Button><Button className="is-hover">Hover</Button><Button className="is-focus">Focus</Button><Button className="is-active">Active</Button></div> };
 export const Campos: Story = { render: () => <div className="story-stack"><Input label="Nombre del proyecto" defaultValue="Atlas Design System" help="Se usa en documentación y exportaciones." /><Input label="Email" defaultValue="equipo@" error="Ingresá un email válido." /><Input label="Ancho máximo" defaultValue="1280" suffix="px" /><Textarea label="Descripción" defaultValue="Contenido largo para validar que el campo conserve ritmo, altura y legibilidad incluso en documentación extensa." /></div> };

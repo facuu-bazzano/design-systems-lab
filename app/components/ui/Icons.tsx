@@ -12,6 +12,7 @@ export {
   FolderOpen as FolderIcon,
   Grid2X2 as GridIcon,
   Info as InfoIcon,
+  Minus as MinusIcon,
   Moon as MoonIcon,
   MoreHorizontal as MoreIcon,
   Palette as PaletteIcon,
