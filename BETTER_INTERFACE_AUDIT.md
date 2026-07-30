@@ -68,12 +68,27 @@ No se confirmaron hallazgos **críticos**.
 
 **Necesita cambios.** Hay dos problemas de severidad alta en exportación e importación y seis problemas medios verificables. Ninguno requiere rediseñar el producto: se concentran en semántica, foco, feedback y honestidad de los affordances existentes.
 
+## Estado final — pasada de corrección accesible
+
+Fecha de implementación: 2026-07-30.
+
+Las siete skills `better-*` documentadas abajo fueron retiradas del proyecto y sustituidas por el router local `ui-skills-root`. Este informe se conserva como registro histórico de la detección original.
+
+| # | Hallazgo original | Estado final | Evidencia principal |
+|---|---|---|---|
+| 1 | Configurar exportación sin modal canónico | **Resuelto** | `<dialog>.showModal()`, título/descripción conectados, foco inicial, Escape nativo y restauración al disparador. |
+| 2 | Importación comunicada solo por toast | **Resuelto** | Éxito `role=status`; error persistente `role=alert` con explicación, cierre y acción “Elegir otro archivo”. |
+| 3 | Navegación SPA sin estado/anuncio | **Resuelto** | `aria-current`, skip link, título de documento y foco del `<h1>` solo después de navegación iniciada por usuario. |
+| 4 | Landmarks `<main>` anidados en Salud | **Resuelto** | Un solo `<main>` de aplicación; escenarios etiquetados como `article` con secciones internas. |
+| 5 | Selector tipográfico sin patrón combobox/listbox | **Resuelto** | Combobox editable, listbox/options, `aria-activedescendant`, flechas, Enter y Escape. |
+| 6 | Errores visibles no asociados al campo | **Resuelto** | IDs estables, `aria-invalid` y `aria-describedby` en componentes del Lab y previews de Catálogo. |
+| 7 | Campos móviles menores a 16 px | **Resuelto** | Override táctil específico a 16 px para campos editables; no altera la escala tipográfica general. |
+| 8 | Métricas cero navegables | **Resuelto** | Cero se presenta como “Sin hallazgos”; solo valores positivos son controles con nombre contextual. |
+
+La validación final está detallada en `UI_SKILLS_AUDIT.md`.
+
 ## Cómo invocar las skills en Codex
 
-Desde esta rama/worktree, Codex descubre las skills copiadas en `.agents/skills`. Ejemplos:
+Desde esta rama/worktree, Codex descubre `ui-skills-root` en `.agents/skills`. El router se usa para seleccionar la guía mínima y puede inspeccionarse con `pnpm dlx ui-skills categories`, `pnpm dlx ui-skills list --category accessibility` y `pnpm dlx ui-skills get fixing-accessibility`.
 
-- `$better-interface full revisá el flujo principal del Laboratorio`
-- `$better-accessibility revisá el panel Configurar exportación`
-- `$better-writing revisá los mensajes de importación y recuperación`
-
-La instalación es local al proyecto. No se copiaron archivos al directorio global de skills de Codex.
+La instalación es local al proyecto. No se copiaron archivos al directorio global de skills de Codex ni se instaló el catálogo completo.

@@ -13,6 +13,7 @@ import { colorLibraries, colorPresets, paletteFromPreset } from "./lib/color-pre
 import { allColorReferences, createBlankProject, createInitialProject, DesignSystemProject, fontOptions, generateColorScale, generateTypeLevels, makeManualPalette, makePalette, migrateProject, PlatformId, platformOrder, ratioOptions, relativeLuminance, resolveComponent, resolveLayout, resolveResponsiveScale, resolveSemantic, ScaleGroupKey, scaleLabels, uid } from "./lib/model";
 
 type MainSection = "project" | "colors" | "typography" | "scales" | "semantics" | "components" | "catalog" | "health";
+type Notice = { message: string; tone: "success" | "error" };
 const STORAGE_KEY = "design-system-lab-project-v1";
 const THEME_KEY = "design-system-lab-ui-theme";
 const exportOptions: { value: ExportCategory; label: string }[] = [
@@ -187,10 +188,25 @@ function ExportPanel({ project, open, onClose, notice }: { project: DesignSystem
   const [format, setFormat] = useState("json");
   const [theme, setTheme] = useState("all");
   const [platform, setPlatform] = useState("all");
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!open || !dialog) return;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    if (!dialog.open) dialog.showModal();
+    return () => {
+      if (dialog.open) dialog.close();
+      document.body.style.overflow = previousOverflow;
+      returnFocusRef.current?.focus();
+    };
+  }, [open]);
   if (!open) return null;
   const snapshot = () => { const clone = structuredClone(project); if (theme !== "all") clone.themes = clone.themes.filter((item) => item.id === theme); if (platform !== "all") platformOrder.forEach((id) => { clone.platforms[id].enabled = id === platform; }); return clone; };
   const exportTokens = () => { const scoped = snapshot(); downloadText(projectFilename(project, format === "json" ? "-tokens.json" : "-tokens.css"), format === "json" ? JSON.stringify(buildTokenSubset(scoped, categories), null, 2) : buildCss(scoped, categories), format === "json" ? "application/json" : "text/css"); notice("Exportación generada"); };
-  return <div className="export-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><aside className="export-panel-v4" role="dialog" aria-modal="true" aria-labelledby="export-title"><SectionHeading title="Configurar exportación" description="Elegí contenido, destino y alcance. Podés cerrar y volver para crear exportaciones secuenciales." action={<IconButton label="Cerrar" onClick={onClose}><X /></IconButton>} /><Card><SectionHeading level={2} title="Contenido" /> <div className="export-checks">{exportOptions.map((option) => <Checkbox key={option.value} checked={categories.includes(option.value)} onCheckedChange={(checked) => setCategories((current) => checked ? [...current, option.value] : current.filter((item) => item !== option.value))} label={option.label} />)}</div></Card><Card><SectionHeading level={2} title="Destino y alcance" /><RadioGroup value={format} onValueChange={setFormat} options={[{ value: "json", label: "JSON para Figma y desarrollo" }, { value: "css", label: "Variables CSS" }]} /><div className="form-grid"><Select label="Modo" value={theme} onValueChange={setTheme} options={[{ value: "all", label: "Todos los modos" }, ...project.themes.map((item) => ({ value: item.id, label: item.name }))]} /><Select label="Plataforma" value={platform} onValueChange={setPlatform} options={[{ value: "all", label: "Todas las plataformas" }, ...platformOrder.filter((id) => project.platforms[id].enabled).map((id) => ({ value: id, label: project.platforms[id].name }))]} /></div><Button variant="primary" size="lg" disabled={!categories.length} onClick={exportTokens}>Exportar selección</Button></Card><Card><SectionHeading level={2} title="Otras salidas" description="El archivo editable y el sitio de documentación son salidas separadas." /><div className="export-actions-v4"><Button onClick={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))}>Descargar proyecto editable</Button><Button onClick={() => downloadText(projectFilename(project, "-docs.html"), buildDocumentation(project), "text/html")}>Descargar documentación HTML</Button></div></Card></aside></div>;
+  return <dialog ref={dialogRef} className="export-overlay" aria-labelledby="export-title" aria-describedby="export-description" onCancel={(event) => { event.preventDefault(); onClose(); }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className="export-panel-v4"><header className="ui-section-heading level-1"><div><h1 id="export-title">Configurar exportación</h1><p id="export-description">Elegí contenido, destino y alcance. Podés cerrar y volver para crear exportaciones secuenciales.</p></div><IconButton label="Cerrar" autoFocus onClick={onClose}><X /></IconButton></header><Card><SectionHeading level={2} title="Contenido" /> <div className="export-checks">{exportOptions.map((option) => <Checkbox key={option.value} checked={categories.includes(option.value)} onCheckedChange={(checked) => setCategories((current) => checked ? [...current, option.value] : current.filter((item) => item !== option.value))} label={option.label} />)}</div></Card><Card><SectionHeading level={2} title="Destino y alcance" /><RadioGroup value={format} onValueChange={setFormat} options={[{ value: "json", label: "JSON para Figma y desarrollo" }, { value: "css", label: "Variables CSS" }]} /><div className="form-grid"><Select label="Modo" value={theme} onValueChange={setTheme} options={[{ value: "all", label: "Todos los modos" }, ...project.themes.map((item) => ({ value: item.id, label: item.name }))]} /><Select label="Plataforma" value={platform} onValueChange={setPlatform} options={[{ value: "all", label: "Todas las plataformas" }, ...platformOrder.filter((id) => project.platforms[id].enabled).map((id) => ({ value: id, label: project.platforms[id].name }))]} /></div><Button variant="primary" size="lg" disabled={!categories.length} onClick={exportTokens}>Exportar selección</Button></Card><Card><SectionHeading level={2} title="Otras salidas" description="El archivo editable y el sitio de documentación son salidas separadas." /><div className="export-actions-v4"><Button onClick={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))}>Descargar proyecto editable</Button><Button onClick={() => downloadText(projectFilename(project, "-docs.html"), buildDocumentation(project), "text/html")}>Descargar documentación HTML</Button></div></Card></div></dialog>;
 }
 
 export default function Home() {
@@ -200,16 +216,30 @@ export default function Home() {
   const [section, setSection] = useState<MainSection>("project");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [hydrated, setHydrated] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<Notice>();
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState("");
   const [scaleTarget, setScaleTarget] = useState<PlatformId>();
   const importRef = useRef<HTMLInputElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const navigationRequestedRef = useRef(false);
+  const noticeTimerRef = useRef<number | undefined>(undefined);
   const projectTypography = project.foundations.typography;
   useEffect(() => { queueMicrotask(() => { try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) setProject(migrateProject(JSON.parse(raw))); setTheme(localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light"); } catch { /* defaults */ } setHydrated(true); }); }, []);
   useEffect(() => { if (!hydrated || !active) return; const timer = window.setTimeout(() => localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...project, meta: { ...project.meta, updatedAt: new Date().toISOString() } })), 400); return () => window.clearTimeout(timer); }, [project, hydrated, active]);
   useEffect(() => { if (hydrated) localStorage.setItem(THEME_KEY, theme); document.documentElement.dataset.labTheme = theme; }, [theme, hydrated]);
-  useEffect(() => { if (active) window.scrollTo({ top: 0, behavior: "auto" }); }, [section, active]);
+  useEffect(() => {
+    if (!active) return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+    const sectionLabel: Record<MainSection, string> = { project: "Proyecto", colors: "Color", typography: "Tipografía", scales: "Escalas y layout", semantics: "Tokens semánticos", components: "Tokens de componente", catalog: "Catálogo", health: "Salud del sistema" };
+    document.title = `${sectionLabel[section]} · ${project.meta.name} · Laboratorio de Sistemas de Diseño`;
+    if (!navigationRequestedRef.current) return;
+    navigationRequestedRef.current = false;
+    queueMicrotask(() => {
+      const heading = mainRef.current?.querySelector("h1");
+      if (heading instanceof HTMLElement) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+    });
+  }, [section, active, project.meta.name]);
   useEffect(() => {
     const id = "font-family-catalog";
     document.getElementById(id)?.remove();
@@ -223,19 +253,28 @@ export default function Home() {
   }, []);
   useEffect(() => { const id = "project-google-font"; document.getElementById(id)?.remove(); if (projectTypography.source !== "google") return; const link = document.createElement("link"); link.id = id; link.rel = "stylesheet"; link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(projectTypography.family).replaceAll("%20", "+")}:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap`; document.head.appendChild(link); return () => link.remove(); }, [projectTypography]);
   const health = useMemo(() => analyzeProject(project), [project]);
-  const flash = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(""), 2400); };
+  const flash = (message: string) => {
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    setNotice({ message, tone: "success" });
+    noticeTimerRef.current = window.setTimeout(() => setNotice(undefined), 2400);
+  };
+  const showImportError = (message: string) => {
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    setNotice({ message, tone: "error" });
+  };
   const update = (recipe: (current: DesignSystemProject) => DesignSystemProject) => setProject((current) => recipe(current));
   const choose = (kind: "validated" | "blank") => { setProject(kind === "validated" ? createInitialProject() : createBlankProject()); setSetupOpen(true); };
-  const importProject = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { setProject(migrateProject(JSON.parse(String(reader.result)))); setActive(true); flash("Proyecto importado"); } catch { flash("El archivo no es compatible"); } }; reader.readAsText(file); event.target.value = ""; };
-  const openTokens = (token: string) => { setSelectedToken(token); setSection(project.componentTokens.some((item) => item.name === token || item.id === token) ? "components" : "semantics"); };
+  const navigateTo = (nextSection: MainSection) => { navigationRequestedRef.current = true; setSection(nextSection); };
+  const importProject = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { setProject(migrateProject(JSON.parse(String(reader.result)))); setActive(true); flash(`Proyecto “${file.name}” importado correctamente`); } catch { showImportError(`No pudimos leer “${file.name}”. Verificá que sea un archivo de proyecto .json o .dslab.json válido y volvé a elegirlo.`); } }; reader.onerror = () => showImportError(`No pudimos leer “${file.name}”. Comprobá que el archivo esté disponible y volvé a intentarlo.`); reader.readAsText(file); event.target.value = ""; };
+  const openTokens = (token: string) => { setSelectedToken(token); navigateTo(project.componentTokens.some((item) => item.name === token || item.id === token) ? "components" : "semantics"); };
   const openFinding = (finding: HealthFinding) => {
-    if (finding.section === "scales") { setScaleTarget(finding.platformId); setSection("scales"); return; }
-    if (finding.section === "catalog") { setSection("catalog"); return; }
-    if (finding.section === "colors") { setSection("colors"); return; }
+    if (finding.section === "scales") { setScaleTarget(finding.platformId); navigateTo("scales"); return; }
+    if (finding.section === "catalog") { navigateTo("catalog"); return; }
+    if (finding.section === "colors") { navigateTo("colors"); return; }
     openTokens(finding.target || finding.area);
   };
   if (!active && !setupOpen) return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}><Starter onChoose={choose} /></div>;
-  if (!active && setupOpen) return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}><main className="setup-v4"><header><div className="setup-header-start"><BrandMark size={38} /><button type="button" onClick={() => setSetupOpen(false)}>Volver</button></div><span>Paso 2 de 2</span></header><ProjectView project={project} update={update} /><div className="setup-actions"><Button size="lg" onClick={() => setSetupOpen(false)}>Cambiar punto de partida</Button><Button variant="primary" size="lg" onClick={() => { setActive(true); setSetupOpen(false); setSection("colors"); }}>Entrar al laboratorio <ArrowRightIcon /></Button></div></main></div>;
+  if (!active && setupOpen) return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}><main className="setup-v4"><header><div className="setup-header-start"><BrandMark size={38} /><button type="button" onClick={() => setSetupOpen(false)}>Volver</button></div><span>Paso 2 de 2</span></header><ProjectView project={project} update={update} /><div className="setup-actions"><Button size="lg" onClick={() => setSetupOpen(false)}>Cambiar punto de partida</Button><Button variant="primary" size="lg" onClick={() => { navigationRequestedRef.current = true; setActive(true); setSetupOpen(false); setSection("colors"); }}>Entrar al laboratorio <ArrowRightIcon /></Button></div></main></div>;
   const healthStatus = health.status === "not-evaluated" ? "pending" : health.counts.blocking || health.counts.warning ? "attention" : "ready";
   const renderMain = () => {
     if (section === "project") return <ProjectView project={project} update={update} />;
@@ -245,7 +284,7 @@ export default function Home() {
     if (section === "semantics") return <TokensView key={`semantic-${selectedToken}`} project={project} update={update} selected={selectedToken} layer="semantic" />;
     if (section === "components") return <TokensView key={`component-${selectedToken}`} project={project} update={update} selected={selectedToken} layer="component" />;
     if (section === "catalog") return <Catalog project={project} onOpenTokens={openTokens} />;
-    return <HealthView project={project} onOpenTokens={openTokens} onOpenCatalog={() => setSection("catalog")} onOpenFinding={openFinding} />;
+    return <HealthView project={project} onOpenTokens={openTokens} onOpenCatalog={() => navigateTo("catalog")} onOpenFinding={openFinding} />;
   };
   const navigation: { id: MainSection; label: string; icon: React.ReactNode; group?: string }[] = [
     { id: "project", label: "Proyecto", icon: <SlidersIcon /> },
@@ -258,16 +297,18 @@ export default function Home() {
     { id: "health", label: "Salud del sistema", icon: <HeartPulse /> },
   ];
   return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}>
+    <a className="skip-link-v4" href="#lab-main">Saltar al contenido</a>
     <LabHeader
       projectName={project.meta.name}
-      health={<HealthIndicator score={health.score} status={healthStatus} summary={health.summary} onClick={() => setSection("health")} />}
+      health={<HealthIndicator score={health.score} status={healthStatus} summary={health.summary} onClick={() => navigateTo("health")} />}
       projectMenu={<ProjectMenu onImport={() => importRef.current?.click()} onDownload={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))} onDuplicate={() => { setProject((current) => ({ ...structuredClone(current), id: uid(), meta: { ...current.meta, name: `${current.meta.name} copia` } })); flash("Proyecto duplicado"); }} />}
       themeAction={<IconButton label={theme === "light" ? "Usar tema oscuro del Laboratorio" : "Usar tema claro del Laboratorio"} onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}>{theme === "light" ? <MoonIcon /> : <SunIcon />}</IconButton>}
       exportMenu={<ExportMenu onConfigure={() => setExportOpen(true)} onQuickExport={() => { downloadText(projectFilename(project, "-tokens.json"), JSON.stringify(buildTokenSubset(project, exportOptions.map((item) => item.value)), null, 2)); flash("Exportación rápida generada"); }} />}
     />
     <input ref={importRef} hidden type="file" accept=".json,.dslab.json" onChange={importProject} />
-    <div className="workspace-v4"><aside className="sidebar-v4"><nav aria-label="Navegación principal">{navigation.map((item) => <div key={item.id}>{item.group ? <span className="sidebar-group">{item.group}</span> : null}<button className={section === item.id ? "active" : ""} onClick={() => { if (item.id === "scales") setScaleTarget(undefined); setSection(item.id); }}>{item.icon}<span>{item.label}</span></button></div>)}</nav></aside><main className="main-v4">{renderMain()}</main></div>
+    <div className="workspace-v4"><aside className="sidebar-v4"><nav aria-label="Navegación principal">{navigation.map((item) => <div key={item.id}>{item.group ? <span className="sidebar-group">{item.group}</span> : null}<button className={section === item.id ? "active" : ""} aria-current={section === item.id ? "page" : undefined} onClick={() => { if (item.id === "scales") setScaleTarget(undefined); navigateTo(item.id); }}>{item.icon}<span>{item.label}</span></button></div>)}</nav></aside><main ref={mainRef} id="lab-main" className="main-v4">{renderMain()}</main></div>
     <ExportPanel project={project} open={exportOpen} onClose={() => setExportOpen(false)} notice={flash} />
-    {notice ? <div className="toast-v4">{notice}</div> : null}
+    {notice?.tone === "success" ? <div className="toast-v4" role="status" aria-live="polite">{notice.message}</div> : null}
+    {notice?.tone === "error" ? <div className="import-error-v4" role="alert" aria-live="assertive"><div><b>No se pudo importar el proyecto</b><p>{notice.message}</p></div><Button onClick={() => importRef.current?.click()}>Elegir otro archivo</Button><IconButton label="Cerrar mensaje" onClick={() => setNotice(undefined)}><X /></IconButton></div> : null}
   </div>;
 }

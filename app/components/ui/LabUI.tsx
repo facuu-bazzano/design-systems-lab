@@ -1,6 +1,6 @@
 "use client";
 
-import { ComponentPropsWithoutRef, ReactNode, useMemo, useState } from "react";
+import { ComponentPropsWithoutRef, KeyboardEvent, ReactNode, useId, useMemo, useRef, useState } from "react";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import * as DropdownPrimitive from "@radix-ui/react-dropdown-menu";
 import * as Popover from "@radix-ui/react-popover";
@@ -23,10 +23,18 @@ export function IconButton({ label, children, className = "", ...props }: Compon
 
 type FieldProps = ComponentPropsWithoutRef<"input"> & { label?: string; help?: string; error?: string; suffix?: string };
 export function Input({ label, help, error, suffix, className = "", ...props }: FieldProps) {
-  return <label className={`ui-field ${error ? "is-error" : ""}`}><span className="ui-field-label">{label}</span><span className="ui-input-shell"><input className={className} aria-invalid={Boolean(error)} {...props} />{suffix ? <span className="ui-input-suffix">{suffix}</span> : null}</span>{error || help ? <small>{error || help}</small> : null}</label>;
+  const generatedId = useId();
+  const controlId = props.id || `field-${generatedId}`;
+  const descriptionId = `${controlId}-description`;
+  const describedBy = [props["aria-describedby"], error || help ? descriptionId : undefined].filter(Boolean).join(" ") || undefined;
+  return <label className={`ui-field ${error ? "is-error" : ""}`} htmlFor={controlId}><span className="ui-field-label">{label}</span><span className="ui-input-shell"><input {...props} id={controlId} className={className} aria-invalid={error ? true : props["aria-invalid"]} aria-describedby={describedBy} />{suffix ? <span className="ui-input-suffix">{suffix}</span> : null}</span>{error || help ? <small id={descriptionId}>{error || help}</small> : null}</label>;
 }
 export function Textarea({ label, help, error, className = "", ...props }: ComponentPropsWithoutRef<"textarea"> & { label?: string; help?: string; error?: string }) {
-  return <label className={`ui-field ${error ? "is-error" : ""}`}><span className="ui-field-label">{label}</span><textarea className={className} aria-invalid={Boolean(error)} {...props} />{error || help ? <small>{error || help}</small> : null}</label>;
+  const generatedId = useId();
+  const controlId = props.id || `field-${generatedId}`;
+  const descriptionId = `${controlId}-description`;
+  const describedBy = [props["aria-describedby"], error || help ? descriptionId : undefined].filter(Boolean).join(" ") || undefined;
+  return <label className={`ui-field ${error ? "is-error" : ""}`} htmlFor={controlId}><span className="ui-field-label">{label}</span><textarea {...props} id={controlId} className={className} aria-invalid={error ? true : props["aria-invalid"]} aria-describedby={describedBy} />{error || help ? <small id={descriptionId}>{error || help}</small> : null}</label>;
 }
 
 export type SelectOption = { value: string; label: string; meta?: string };
@@ -37,9 +45,40 @@ export function Select({ label, value, onValueChange, options, disabled, placeho
 export function Combobox({ label, value, onValueChange, options, placeholder = "Buscar o seleccionar", renderOption }: { label?: string; value: string; onValueChange: (value: string) => void; options: SelectOption[]; placeholder?: string; renderOption?: (option: SelectOption) => ReactNode }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suppressFocusOpenRef = useRef(false);
+  const listboxId = `combobox-${useId()}`;
   const filtered = useMemo(() => options.filter((option) => `${option.label} ${option.meta || ""}`.toLowerCase().includes(query.toLowerCase())), [options, query]);
+  const normalizedActiveIndex = filtered.length ? Math.min(activeIndex, filtered.length - 1) : 0;
   const current = options.find((option) => option.value === value);
-  return <label className="ui-field"><span className="ui-field-label">{label}</span><Popover.Root open={open} onOpenChange={setOpen}><Popover.Trigger className="ui-combobox-trigger" aria-label={label}>{current?.label || value || placeholder}<ChevronDownIcon /></Popover.Trigger><Popover.Portal><Popover.Content className="ui-combobox-content" sideOffset={6} align="start"><div className="ui-combobox-search"><SearchIcon /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} autoFocus /></div><div className="ui-combobox-list">{filtered.map((option) => <button type="button" key={option.value} className={option.value === value ? "selected" : ""} onClick={() => { onValueChange(option.value); setOpen(false); setQuery(""); }}>{renderOption ? renderOption(option) : <span><b>{option.label}</b>{option.meta ? <small>{option.meta}</small> : null}</span>}{option.value === value ? <CheckIcon /> : null}</button>)}{!filtered.length ? <p>Sin coincidencias. Podés ingresar una familia personalizada.</p> : null}</div></Popover.Content></Popover.Portal></Popover.Root></label>;
+  const chooseOption = (option?: SelectOption) => {
+    if (!option) return;
+    onValueChange(option.value);
+    setOpen(false);
+    setQuery("");
+    suppressFocusOpenRef.current = true;
+    inputRef.current?.focus();
+    queueMicrotask(() => { suppressFocusOpenRef.current = false; });
+  };
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((currentIndex) => filtered.length ? (currentIndex + direction + filtered.length) % filtered.length : 0);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      chooseOption(filtered[normalizedActiveIndex]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+      setQuery("");
+      suppressFocusOpenRef.current = true;
+      inputRef.current?.focus();
+      queueMicrotask(() => { suppressFocusOpenRef.current = false; });
+    }
+  };
+  return <div className="ui-field"><span className="ui-field-label">{label}</span><Popover.Root open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); if (nextOpen) { const selectedIndex = filtered.findIndex((option) => option.value === value); setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0); } else setQuery(""); }}><Popover.Anchor asChild><div className="ui-combobox-trigger"><SearchIcon /><input ref={inputRef} role="combobox" aria-label={label} aria-autocomplete="list" aria-expanded={open} aria-haspopup="listbox" aria-controls={listboxId} aria-activedescendant={open && filtered[normalizedActiveIndex] ? `${listboxId}-option-${normalizedActiveIndex}` : undefined} value={open ? query : current?.label || value} placeholder={placeholder} onFocus={() => { if (suppressFocusOpenRef.current) return; setOpen(true); }} onClick={() => setOpen(true)} onChange={(event) => { if (!open) setOpen(true); setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={handleSearchKeyDown} /><Popover.Trigger asChild><button type="button" aria-label={open ? "Cerrar opciones" : "Abrir opciones"} tabIndex={-1}><ChevronDownIcon /></button></Popover.Trigger></div></Popover.Anchor><Popover.Portal><Popover.Content role="presentation" className="ui-combobox-content" sideOffset={6} align="start" onOpenAutoFocus={(event) => event.preventDefault()}><div className="ui-combobox-list" id={listboxId} role="listbox" aria-label={label}>{filtered.map((option, index) => <button type="button" role="option" id={`${listboxId}-option-${index}`} aria-selected={option.value === value} key={option.value} className={`${option.value === value ? "selected" : ""} ${index === normalizedActiveIndex ? "active" : ""}`} tabIndex={-1} onMouseMove={() => setActiveIndex(index)} onClick={() => chooseOption(option)}>{renderOption ? renderOption(option) : <span><b>{option.label}</b>{option.meta ? <small>{option.meta}</small> : null}</span>}{option.value === value ? <CheckIcon /> : null}</button>)}{!filtered.length ? <p>Sin coincidencias. Podés ingresar una familia personalizada.</p> : null}</div></Popover.Content></Popover.Portal></Popover.Root></div>;
 }
 
 export function Checkbox({ checked, onCheckedChange, label, disabled }: { checked: boolean; onCheckedChange: (checked: boolean) => void; label: ReactNode; disabled?: boolean }) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, useMemo, useState } from "react";
+import { CSSProperties, useId, useMemo, useState } from "react";
 import * as RadioPrimitive from "@radix-ui/react-radio-group";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
@@ -20,8 +20,10 @@ function ProjectButton({ state }: { state: string }) {
 }
 
 function ProjectField({ multiline = false, state }: { multiline?: boolean; state: string }) {
-  const common = { className: `project-field ${stateClass(state)}`, disabled: state === "Disabled", "aria-invalid": state === "Error" || undefined, defaultValue: state === "Error" ? "equipo@" : multiline ? "Notas para el equipo de diseño." : "Ada Lovelace" };
-  return <label className="project-field-wrap"><span>{multiline ? "Descripción" : "Correo de contacto"}</span>{multiline ? <textarea {...common} /> : <input {...common} />}<small className={state === "Error" ? "error-copy" : ""}>{state === "Error" ? "Ingresá un valor válido." : "Texto de ayuda visible y legible."}</small></label>;
+  const controlId = `catalog-field-${useId()}`;
+  const descriptionId = `${controlId}-description`;
+  const common = { id: controlId, className: `project-field ${stateClass(state)}`, disabled: state === "Disabled", "aria-invalid": state === "Error" || undefined, "aria-describedby": descriptionId, defaultValue: state === "Error" ? "equipo@" : multiline ? "Notas para el equipo de diseño." : "Ada Lovelace" };
+  return <label className="project-field-wrap" htmlFor={controlId}><span>{multiline ? "Descripción" : "Correo de contacto"}</span>{multiline ? <textarea {...common} /> : <input {...common} />}<small id={descriptionId} className={state === "Error" ? "error-copy" : ""}>{state === "Error" ? "Ingresá un valor válido." : "Texto de ayuda visible y legible."}</small></label>;
 }
 
 function ProjectSelection({ kind, state }: { kind: "checkbox" | "radio" | "switch"; state: string }) {
