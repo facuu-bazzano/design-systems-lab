@@ -9,6 +9,7 @@ import { Alert, Badge, Button, Card, Checkbox, Combobox, ExportMenu, HealthIndic
 import { ArrowRightIcon, GridIcon, MoonIcon, SlidersIcon, SunIcon } from "./components/ui/Icons";
 import { analyzeProject, HealthFinding } from "./lib/health";
 import { buildCss, buildDocumentation, buildTokenSubset, downloadText, ExportCategory, projectFilename } from "./lib/exporters";
+import { buildFigmaMcpPackage, FigmaConflictPolicy } from "./lib/figma-mcp";
 import { colorLibraries, colorPresets, paletteFromPreset } from "./lib/color-presets";
 import { allColorReferences, createBlankProject, createInitialProject, DesignSystemProject, fontOptions, generateColorScale, generateTypeLevels, makeManualPalette, makePalette, migrateProject, PlatformId, platformOrder, ratioOptions, relativeLuminance, resolveComponent, resolveLayout, resolveResponsiveScale, resolveSemantic, ScaleGroupKey, scaleLabels, uid } from "./lib/model";
 
@@ -188,6 +189,9 @@ function ExportPanel({ project, open, onClose, notice }: { project: DesignSystem
   const [format, setFormat] = useState("json");
   const [theme, setTheme] = useState("all");
   const [platform, setPlatform] = useState("all");
+  const [figmaTarget, setFigmaTarget] = useState("");
+  const [figmaConflictPolicy, setFigmaConflictPolicy] = useState<FigmaConflictPolicy>("review");
+  const [figmaDryRun, setFigmaDryRun] = useState(true);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -197,6 +201,7 @@ function ExportPanel({ project, open, onClose, notice }: { project: DesignSystem
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     if (!dialog.open) dialog.showModal();
+    queueMicrotask(() => dialog.querySelector<HTMLElement>("[data-export-close]")?.focus());
     return () => {
       if (dialog.open) dialog.close();
       document.body.style.overflow = previousOverflow;
@@ -205,8 +210,18 @@ function ExportPanel({ project, open, onClose, notice }: { project: DesignSystem
   }, [open]);
   if (!open) return null;
   const snapshot = () => { const clone = structuredClone(project); if (theme !== "all") clone.themes = clone.themes.filter((item) => item.id === theme); if (platform !== "all") platformOrder.forEach((id) => { clone.platforms[id].enabled = id === platform; }); return clone; };
-  const exportTokens = () => { const scoped = snapshot(); downloadText(projectFilename(project, format === "json" ? "-tokens.json" : "-tokens.css"), format === "json" ? JSON.stringify(buildTokenSubset(scoped, categories), null, 2) : buildCss(scoped, categories), format === "json" ? "application/json" : "text/css"); notice("Exportación generada"); };
-  return <dialog ref={dialogRef} className="export-overlay" aria-labelledby="export-title" aria-describedby="export-description" onCancel={(event) => { event.preventDefault(); onClose(); }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className="export-panel-v4"><header className="ui-section-heading level-1"><div><h1 id="export-title">Configurar exportación</h1><p id="export-description">Elegí contenido, destino y alcance. Podés cerrar y volver para crear exportaciones secuenciales.</p></div><IconButton label="Cerrar" autoFocus onClick={onClose}><X /></IconButton></header><Card><SectionHeading level={2} title="Contenido" /> <div className="export-checks">{exportOptions.map((option) => <Checkbox key={option.value} checked={categories.includes(option.value)} onCheckedChange={(checked) => setCategories((current) => checked ? [...current, option.value] : current.filter((item) => item !== option.value))} label={option.label} />)}</div></Card><Card><SectionHeading level={2} title="Destino y alcance" /><RadioGroup value={format} onValueChange={setFormat} options={[{ value: "json", label: "JSON para Figma y desarrollo" }, { value: "css", label: "Variables CSS" }]} /><div className="form-grid"><Select label="Modo" value={theme} onValueChange={setTheme} options={[{ value: "all", label: "Todos los modos" }, ...project.themes.map((item) => ({ value: item.id, label: item.name }))]} /><Select label="Plataforma" value={platform} onValueChange={setPlatform} options={[{ value: "all", label: "Todas las plataformas" }, ...platformOrder.filter((id) => project.platforms[id].enabled).map((id) => ({ value: id, label: project.platforms[id].name }))]} /></div><Button variant="primary" size="lg" disabled={!categories.length} onClick={exportTokens}>Exportar selección</Button></Card><Card><SectionHeading level={2} title="Otras salidas" description="El archivo editable y el sitio de documentación son salidas separadas." /><div className="export-actions-v4"><Button onClick={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))}>Descargar proyecto editable</Button><Button onClick={() => downloadText(projectFilename(project, "-docs.html"), buildDocumentation(project), "text/html")}>Descargar documentación HTML</Button></div></Card></div></dialog>;
+  const exportTokens = () => {
+    const scoped = snapshot();
+    if (format === "figma-mcp") {
+      const bundle = buildFigmaMcpPackage(scoped, { categories, targetFileUrl: figmaTarget, conflictPolicy: figmaConflictPolicy, dryRun: figmaDryRun });
+      downloadText(projectFilename(project, "-figma-mcp-package.json"), JSON.stringify(bundle, null, 2));
+      notice(bundle.validation.status === "blocked" ? "Paquete MCP generado con bloqueantes para revisar" : "Paquete para GPT + Figma MCP generado");
+      return;
+    }
+    downloadText(projectFilename(project, format === "json" ? "-tokens.json" : "-tokens.css"), format === "json" ? JSON.stringify(buildTokenSubset(scoped, categories), null, 2) : buildCss(scoped, categories), format === "json" ? "application/json" : "text/css");
+    notice("Exportación generada");
+  };
+  return <dialog ref={dialogRef} className="export-overlay" aria-labelledby="export-title" aria-describedby="export-description" onCancel={(event) => { event.preventDefault(); onClose(); }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className="export-panel-v4"><header className="ui-section-heading level-1"><div><h1 id="export-title">Configurar exportación</h1><p id="export-description">Elegí contenido, destino y alcance. Podés cerrar y volver para crear exportaciones secuenciales.</p></div><IconButton label="Cerrar" data-export-close onClick={onClose}><X /></IconButton></header><Card><SectionHeading level={2} title="Contenido" /> <div className="export-checks">{exportOptions.map((option) => <Checkbox key={option.value} checked={categories.includes(option.value)} onCheckedChange={(checked) => setCategories((current) => checked ? [...current, option.value] : current.filter((item) => item !== option.value))} label={option.label} />)}</div></Card><Card><SectionHeading level={2} title="Destino y alcance" /><RadioGroup value={format} onValueChange={setFormat} options={[{ value: "json", label: "JSON para Figma y desarrollo" }, { value: "css", label: "Variables CSS" }, { value: "figma-mcp", label: "Paquete para GPT + Figma MCP", meta: "Manifiesto, validación y plan de ejecución en un archivo" }]} />{format === "figma-mcp" ? <div className="figma-mcp-config"><Alert tone="info" title="Ejecución asistida, no automática">El paquete obliga al agente a inspeccionar el archivo, mostrar un dry-run y confirmar conflictos antes de escribir. La capacidad de escritura depende del cliente MCP y de tus permisos en Figma.</Alert><Input label="Archivo Figma Design (opcional)" value={figmaTarget} onChange={(event) => setFigmaTarget(event.target.value)} placeholder="https://www.figma.com/design/…" help="Podés dejarlo vacío y confirmarlo en el chat antes de ejecutar." /><Select label="Si una variable ya existe" value={figmaConflictPolicy} onValueChange={(value) => setFigmaConflictPolicy(value as FigmaConflictPolicy)} options={[{ value: "review", label: "Revisar antes de cambiar", meta: "Recomendado" }, { value: "update-by-name", label: "Actualizar por nombre" }, { value: "skip-existing", label: "Omitir existentes" }]} /><Checkbox checked={figmaDryRun} onCheckedChange={setFigmaDryRun} label="Solicitar simulación y resumen antes de escribir" /></div> : <div className="form-grid"><Select label="Modo" value={theme} onValueChange={setTheme} options={[{ value: "all", label: "Todos los modos" }, ...project.themes.map((item) => ({ value: item.id, label: item.name }))]} /><Select label="Plataforma" value={platform} onValueChange={setPlatform} options={[{ value: "all", label: "Todas las plataformas" }, ...platformOrder.filter((id) => project.platforms[id].enabled).map((id) => ({ value: id, label: project.platforms[id].name }))]} /></div>}<Button variant="primary" size="lg" disabled={!categories.length} onClick={exportTokens}>{format === "figma-mcp" ? "Descargar paquete MCP" : "Exportar selección"}</Button></Card><Card><SectionHeading level={2} title="Otras salidas" description="El archivo editable y el sitio de documentación son salidas separadas." /><div className="export-actions-v4"><Button onClick={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))}>Descargar proyecto editable</Button><Button onClick={() => downloadText(projectFilename(project, "-docs.html"), buildDocumentation(project), "text/html")}>Descargar documentación HTML</Button></div></Card></div></dialog>;
 }
 
 export default function Home() {
@@ -222,6 +237,7 @@ export default function Home() {
   const [scaleTarget, setScaleTarget] = useState<PlatformId>();
   const importRef = useRef<HTMLInputElement>(null);
   const mainRef = useRef<HTMLElement>(null);
+  const navigationRef = useRef<HTMLElement>(null);
   const navigationRequestedRef = useRef(false);
   const noticeTimerRef = useRef<number | undefined>(undefined);
   const projectTypography = project.foundations.typography;
@@ -237,9 +253,20 @@ export default function Home() {
     navigationRequestedRef.current = false;
     queueMicrotask(() => {
       const heading = mainRef.current?.querySelector("h1");
-      if (heading instanceof HTMLElement) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+      if (heading instanceof HTMLElement) {
+        heading.tabIndex = -1;
+        heading.dataset.programmaticFocus = "true";
+        const release = () => { delete heading.dataset.programmaticFocus; heading.removeAttribute("tabindex"); };
+        heading.addEventListener("blur", release, { once: true });
+        heading.focus({ preventScroll: true });
+      }
     });
   }, [section, active, project.meta.name]);
+  useEffect(() => {
+    if (!active || typeof window === "undefined" || window.innerWidth > 800) return;
+    const current = navigationRef.current?.querySelector<HTMLElement>("[aria-current='page']");
+    current?.scrollIntoView({ block: "nearest", inline: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [active, section]);
   useEffect(() => {
     const id = "font-family-catalog";
     document.getElementById(id)?.remove();
@@ -306,7 +333,7 @@ export default function Home() {
       exportMenu={<ExportMenu onConfigure={() => setExportOpen(true)} onQuickExport={() => { downloadText(projectFilename(project, "-tokens.json"), JSON.stringify(buildTokenSubset(project, exportOptions.map((item) => item.value)), null, 2)); flash("Exportación rápida generada"); }} />}
     />
     <input ref={importRef} hidden type="file" accept=".json,.dslab.json" onChange={importProject} />
-    <div className="workspace-v4"><aside className="sidebar-v4"><nav aria-label="Navegación principal">{navigation.map((item) => <div key={item.id}>{item.group ? <span className="sidebar-group">{item.group}</span> : null}<button className={section === item.id ? "active" : ""} aria-current={section === item.id ? "page" : undefined} onClick={() => { if (item.id === "scales") setScaleTarget(undefined); navigateTo(item.id); }}>{item.icon}<span>{item.label}</span></button></div>)}</nav></aside><main ref={mainRef} id="lab-main" className="main-v4">{renderMain()}</main></div>
+    <div className="workspace-v4"><aside ref={navigationRef} className="sidebar-v4"><nav aria-label="Navegación principal">{navigation.map((item) => <div key={item.id}>{item.group ? <span className="sidebar-group">{item.group}</span> : null}<button className={section === item.id ? "active" : ""} aria-current={section === item.id ? "page" : undefined} onClick={() => { if (item.id === "scales") setScaleTarget(undefined); navigateTo(item.id); }}>{item.icon}<span>{item.label}</span></button></div>)}</nav></aside><main ref={mainRef} id="lab-main" className="main-v4">{renderMain()}</main></div>
     <ExportPanel project={project} open={exportOpen} onClose={() => setExportOpen(false)} notice={flash} />
     {notice?.tone === "success" ? <div className="toast-v4" role="status" aria-live="polite">{notice.message}</div> : null}
     {notice?.tone === "error" ? <div className="import-error-v4" role="alert" aria-live="assertive"><div><b>No se pudo importar el proyecto</b><p>{notice.message}</p></div><Button onClick={() => importRef.current?.click()}>Elegir otro archivo</Button><IconButton label="Cerrar mensaje" onClick={() => setNotice(undefined)}><X /></IconButton></div> : null}

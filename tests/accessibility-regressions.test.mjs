@@ -7,6 +7,7 @@ const ui = readFileSync(new URL("../app/components/ui/LabUI.tsx", import.meta.ur
 const catalog = readFileSync(new URL("../app/components/Catalog.tsx", import.meta.url), "utf8");
 const health = readFileSync(new URL("../app/components/HealthView.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+const figmaMcp = readFileSync(new URL("../app/lib/figma-mcp.ts", import.meta.url), "utf8");
 
 test("exportación usa un diálogo modal con nombre, Escape y restauración de foco", () => {
   assert.match(page, /<dialog ref=\{dialogRef\}/);
@@ -31,6 +32,14 @@ test("navegación SPA expone sección actual, skip link y foco solicitado", () =
   assert.match(page, /navigationRequestedRef\.current/);
   assert.match(page, /heading\.focus\(\{ preventScroll: true \}\)/);
   assert.match(page, /document\.title =/);
+  assert.match(page, /heading\.dataset\.programmaticFocus = "true"/);
+  assert.match(css, /h1\[data-programmatic-focus=true\]:focus\{outline:0\}/);
+});
+
+test("diálogo enfoca una acción real y no el contenedor visual", () => {
+  assert.match(page, /\[data-export-close\]/);
+  assert.match(page, /data-export-close onClick=\{onClose\}/);
+  assert.match(css, /\.export-panel-v4:focus\{outline:0\}/);
 });
 
 test("Salud conserva un único main y etiqueta escenarios", () => {
@@ -60,9 +69,35 @@ test("campos editables móviles usan 16px sin alterar toda la tipografía", () =
   assert.doesNotMatch(css, /@media\(max-width:800px\)\{body[^}]+font-size:16px/);
 });
 
+test("motion interno usa primitives y conserva feedback con movimiento reducido", () => {
+  for (const token of ["--motion-duration-control", "--motion-duration-popover", "--motion-duration-drawer", "--motion-ease-drawer"]) assert.match(css, new RegExp(token));
+  assert.match(css, /ui-menu-content\[data-state=open\]/);
+  assert.match(css, /export-overlay\[open\] \.export-panel-v4/);
+  assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.doesNotMatch(css, /prefers-reduced-motion:reduce\)\{\*\{[^}]*transition:none/);
+});
+
+test("navegación móvil comunica continuidad y centra la sección activa", () => {
+  assert.match(page, /navigationRef\.current\?\.querySelector<HTMLElement>\("\[aria-current='page'\]"\)/);
+  assert.match(page, /scrollIntoView\(\{ block: "nearest", inline: "center"/);
+  assert.match(css, /\.sidebar-v4,\.catalog-side-nav\{scroll-snap-type:x proximity/);
+  assert.match(css, /mask-image:linear-gradient/);
+});
+
 test("métricas cero son datos estáticos y las positivas son navegables", () => {
   assert.match(health, /if \(!count\) return <div className="health-stat"/);
   assert.match(health, /if \(!value\) return <span className="metric-zero"/);
   assert.match(health, /return <button className=\{`metric-link/);
   assert.match(health, /Sin hallazgos/);
+});
+
+test("exportación GPT + Figma MCP es explícita, validada y no escribe desde el navegador", () => {
+  assert.match(page, /Paquete para GPT \+ Figma MCP/);
+  assert.match(page, /Descargar paquete MCP/);
+  assert.match(page, /Solicitar simulación y resumen antes de escribir/);
+  assert.match(page, /buildFigmaMcpPackage/);
+  assert.match(figmaMcp, /conflictPolicy/);
+  assert.match(figmaMcp, /TARGET_REQUIRED_AT_RUNTIME/);
+  assert.match(figmaMcp, /Este paquete no ejecuta acciones por sí mismo/);
+  assert.doesNotMatch(figmaMcp, /fetch\(|XMLHttpRequest|Authorization:/);
 });

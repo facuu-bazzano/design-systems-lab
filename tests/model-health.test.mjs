@@ -20,6 +20,7 @@ const registry = await loadTs("app/lib/catalog-registry.ts");
 const resolver = await loadTs("app/lib/token-resolver.ts", { "./model": model, react: {} });
 const health = await loadTs("app/lib/health.ts", { "./model": model, "./token-resolver": resolver });
 const exporters = await loadTs("app/lib/exporters.ts", { "./catalog-registry": registry, "./model": model, "./token-resolver": resolver, "./health": health });
+const figmaMcp = await loadTs("app/lib/figma-mcp.ts", { "./model": model, "./health": health });
 
 test("validated starter resolves all essential variables in light and dark", () => {
   const project = model.createInitialProject();
@@ -116,4 +117,38 @@ test("exports selective tokens, shared CSS variables and structured documentatio
   assert.match(documentation, /\.doc-alert\{display:grid;grid-template-columns:auto 1fr/);
   assert.match(documentation, /var\(--ds-success\) 65%,var\(--ds-text\)/);
   assert.doesNotMatch(documentation, /\.doc-alert\{[^}]*border-left/);
+});
+
+test("Figma MCP package preserves aliases, modes and an inspect-before-write plan", () => {
+  const project = model.createInitialProject();
+  const bundle = figmaMcp.buildFigmaMcpPackage(project, { targetFileUrl: "https://www.figma.com/design/example/Design-System", conflictPolicy: "review", dryRun: true });
+  assert.equal(bundle.kind, "design-systems-lab/figma-mcp-package");
+  assert.equal(bundle.validation.status, "ready-with-warnings");
+  assert.equal(bundle.validation.errors.length, 0);
+  assert.ok(bundle.manifest.collections.find((collection) => collection.key === "primitives-color"));
+  const semantic = bundle.manifest.collections.find((collection) => collection.key === "semantic");
+  const action = semantic.variables.find((variable) => variable.key === "semantic.action-primary");
+  assert.ok(Object.values(action.valuesByMode).every((value) => value.kind === "alias"));
+  const overlay = semantic.variables.find((variable) => variable.key === "semantic.surface-overlay");
+  assert.ok(Object.values(overlay.valuesByMode).every((value) => value.kind === "literal"), "alpha colors must resolve to literals rather than broken aliases");
+  assert.match(bundle.executionPlan, /primitives → layout\/typography → semantic → component/);
+  assert.match(bundle.executionPlan, /use_figma/);
+  assert.match(bundle.recommendedPrompt, /dry-run/);
+  assert.match(bundle.compatibility.sources.figmaWrite, /developers\.figma\.com/);
+});
+
+test("Figma MCP package blocks incomplete projects and validates its target", () => {
+  const blank = figmaMcp.buildFigmaMcpPackage(model.createBlankProject());
+  assert.equal(blank.validation.status, "blocked");
+  assert.ok(blank.validation.errors.some((error) => error.code === "PROJECT_NOT_READY"));
+  const malformed = figmaMcp.buildFigmaMcpPackage(model.createInitialProject(), { targetFileUrl: "https://example.com/not-figma" });
+  assert.ok(malformed.validation.errors.some((error) => error.code === "INVALID_FIGMA_URL"));
+});
+
+test("Figma MCP component-only exports resolve omitted semantic dependencies safely", () => {
+  const bundle = figmaMcp.buildFigmaMcpPackage(model.createInitialProject(), { categories: ["components"], targetFileUrl: "https://www.figma.com/design/example/Design-System" });
+  const components = bundle.manifest.collections.find((collection) => collection.key === "component");
+  assert.ok(components.variables.length > 0);
+  assert.ok(components.variables.flatMap((variable) => Object.values(variable.valuesByMode)).every((value) => value.kind !== "alias" || bundle.manifest.collections.some((collection) => collection.variables.some((variable) => variable.key === value.target))));
+  assert.equal(bundle.validation.errors.some((error) => error.code === "BROKEN_ALIAS"), false);
 });
