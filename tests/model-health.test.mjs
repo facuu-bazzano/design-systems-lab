@@ -24,7 +24,7 @@ const figmaMcp = await loadTs("app/lib/figma-mcp.ts", { "./model": model, "./hea
 
 test("validated starter resolves all essential variables in light and dark", () => {
   const project = model.createInitialProject();
-  assert.equal(project.schemaVersion, 3);
+  assert.equal(project.schemaVersion, 4);
   for (const theme of ["light", "dark"]) {
     const snapshot = resolver.resolveProjectTokens(project, theme, "mobile");
     assert.equal(snapshot.ready, true, `${theme} has missing tokens: ${snapshot.missing.join(", ")}`);
@@ -83,9 +83,9 @@ test("blank project is pending rather than failed", () => {
   assert.equal(snapshot.status, "pending");
 });
 
-test("v2 projects are upgraded to a complete v3 baseline", () => {
+test("v2 projects are upgraded to a complete v4 baseline", () => {
   const upgraded = model.migrateProject({ schemaVersion: 2, id: "legacy", meta: { name: "Importado", description: "", brandMark: "I", updatedAt: "" }, foundations: { colors: [], typography: model.createInitialProject().foundations.typography, scales: model.createInitialProject().foundations.scales, layoutBase: model.createInitialProject().foundations.layoutBase, customFoundations: [] }, semanticTokens: [], componentTokens: [], themes: [] });
-  assert.equal(upgraded.schemaVersion, 3);
+  assert.equal(upgraded.schemaVersion, 4);
   assert.equal(resolver.resolveProjectTokens(upgraded, "light", "mobile").ready, true);
 });
 
@@ -119,6 +119,33 @@ test("exports selective tokens, shared CSS variables and structured documentatio
   assert.doesNotMatch(documentation, /\.doc-alert\{[^}]*border-left/);
 });
 
+test("v3 single-family typography migrates to a reusable family library", () => {
+  const current = model.createInitialProject();
+  const legacy = structuredClone(current);
+  legacy.schemaVersion = 3;
+  legacy.foundations.typography = { family: "Inter", source: "google", availableWeights: [400, 700], styles: ["Normal"], base: current.foundations.typography.base, ratioName: current.foundations.typography.ratioName, ratio: current.foundations.typography.ratio, levels: current.foundations.typography.levels.map((level) => ({ id: level.id, name: level.name, size: level.size, weight: level.weight, lineHeight: level.lineHeight, tracking: level.tracking })) };
+  const upgraded = model.migrateProject(legacy);
+  assert.equal(upgraded.schemaVersion, 4);
+  assert.equal(upgraded.foundations.typography.families.length, 1);
+  assert.equal(upgraded.foundations.typography.families[0].family, "Inter");
+  assert.ok(upgraded.foundations.typography.levels.every((level) => level.familyId === upgraded.foundations.typography.primaryFamilyId));
+});
+
+test("multiple typography families resolve per role and remain serializable", () => {
+  const project = model.createInitialProject();
+  const display = model.makeTypographyFamily("Merriweather", "google", [400, 700], ["Normal", "Italic"]);
+  project.foundations.typography.families.push(display);
+  project.foundations.typography.levels.find((level) => level.name === "Heading").familyId = display.id;
+  project.foundations.typography.levels.find((level) => level.name === "Display").familyId = display.id;
+  const snapshot = resolver.resolveProjectTokens(project, "light", "mobile");
+  assert.match(snapshot.cssVariables["--ds-font-body"], /Inter/);
+  assert.match(snapshot.cssVariables["--ds-font-heading"], /Merriweather/);
+  const subset = exporters.buildTokenSubset(project, ["typography"]);
+  assert.equal(Object.keys(subset.typography.families).length, 2);
+  assert.equal(subset.typography.levels.heading.$value.fontFamily, "Merriweather");
+  assert.doesNotThrow(() => JSON.stringify(project));
+});
+
 test("Figma MCP package preserves aliases, modes and an inspect-before-write plan", () => {
   const project = model.createInitialProject();
   const bundle = figmaMcp.buildFigmaMcpPackage(project, { targetFileUrl: "https://www.figma.com/design/example/Design-System", conflictPolicy: "review", dryRun: true });
@@ -126,6 +153,11 @@ test("Figma MCP package preserves aliases, modes and an inspect-before-write pla
   assert.equal(bundle.validation.status, "ready-with-warnings");
   assert.equal(bundle.validation.errors.length, 0);
   assert.ok(bundle.manifest.collections.find((collection) => collection.key === "primitives-color"));
+  const typographyPrimitives = bundle.manifest.collections.find((collection) => collection.key === "primitives-typography");
+  assert.ok(typographyPrimitives.variables.every((variable) => variable.scopes.length === 0 && variable.hiddenFromPublishing));
+  const typographyRoles = bundle.manifest.collections.find((collection) => collection.key === "typography");
+  assert.deepEqual(typographyRoles.variables.find((variable) => variable.key === "typography.body.family").scopes, ["FONT_FAMILY"]);
+  assert.deepEqual(typographyRoles.variables.find((variable) => variable.key === "typography.body.size").scopes, ["FONT_SIZE"]);
   const semantic = bundle.manifest.collections.find((collection) => collection.key === "semantic");
   const action = semantic.variables.find((variable) => variable.key === "semantic.action-primary");
   assert.ok(Object.values(action.valuesByMode).every((value) => value.kind === "alias"));

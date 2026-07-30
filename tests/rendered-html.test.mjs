@@ -43,7 +43,7 @@ test("publishes Storybook below the application without breaking direct entry po
   await access(new URL("storybook/404.html", outputRoot));
 });
 
-test("keeps v3 capabilities in one serializable project model", async () => {
+test("keeps v4 capabilities in one serializable project model", async () => {
   const model = await readFile(new URL("app/lib/model.ts", projectRoot), "utf8");
   const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
   const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
@@ -52,7 +52,7 @@ test("keeps v3 capabilities in one serializable project model", async () => {
   const exporters = await readFile(new URL("app/lib/exporters.ts", projectRoot), "utf8");
   const ui = await readFile(new URL("app/components/ui/LabUI.tsx", projectRoot), "utf8");
   const stories = await readFile(new URL("app/components/ui/LabUI.stories.tsx", projectRoot), "utf8");
-  assert.match(model, /schemaVersion: 3/);
+  assert.match(model, /schemaVersion: 4/);
   assert.match(model, /semanticTokens: SemanticToken\[\]/);
   assert.match(model, /componentTokens: ComponentToken\[\]/);
   assert.match(model, /migrateProject/);

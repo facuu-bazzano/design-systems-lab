@@ -100,6 +100,10 @@ The Lab uses a neutral Zinc-style shell with a purple/indigo action accent and s
 
 The Lab typography should be utilitarian and readable. Avoid tiny metadata as primary information. Reserve small type for secondary hints, counts, and token codes only.
 
+The typography configured by the user is a separate project foundation. A project may contain multiple named families, one explicit primary family, and a family assignment on every type style. Adding a family must never replace existing assignments; regenerating the modular scale preserves assignments by role. A family in use cannot be removed until its styles are reassigned. The product does not impose a hard family limit, but Health recommends reviewing projects above three families because visual voice and font-loading cost can become fragmented.
+
+Project previews resolve typography through shared role variables (`--ds-font-caption`, `--ds-font-body`, `--ds-font-label`, `--ds-font-heading`, and `--ds-font-display`). Catalog, Health scenarios, static documentation, and export formats must consume the same assignments instead of inventing local font choices. Fonts used inside project previews are not part of the Lab's internal Inter identity.
+
 ### Hierarchy
 
 - **Page title**: strong, compact, used once per main page.
@@ -173,6 +177,7 @@ Global navigation is: Color, Tipografia, Escalas y layout, Tokens semanticos, To
 - Supported color scopes are `FRAME_FILL`, `SHAPE_FILL`, `TEXT_FILL`, `STROKE_COLOR`, and `EFFECT_COLOR`.
 - Supported number scopes are `CORNER_RADIUS`, `WIDTH_HEIGHT`, `GAP`, `TEXT_CONTENT`, `STROKE_FLOAT`, `OPACITY`, `EFFECT_FLOAT`, `FONT_WEIGHT`, `FONT_SIZE`, `LINE_HEIGHT`, `LETTER_SPACING`, `PARAGRAPH_SPACING`, and `PARAGRAPH_INDENT`.
 - Supported string scopes are `TEXT_CONTENT`, `FONT_FAMILY`, and `FONT_STYLE`.
+- Primitive font-family variables are internal foundations with `scopes: []`. Role variables for exported type styles expose `FONT_FAMILY`, `FONT_SIZE`, `FONT_WEIGHT`, `LINE_HEIGHT`, and `LETTER_SPACING` only; they never opt into every supported property.
 
 ### Component Catalog
 

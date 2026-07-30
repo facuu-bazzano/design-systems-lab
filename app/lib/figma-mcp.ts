@@ -1,5 +1,5 @@
 import { analyzeProject } from "./health";
-import { DesignSystemProject, PlatformId, platformOrder, resolveComponent, resolveLayout, resolveResponsiveScale, resolveScaleToken, resolveSemantic } from "./model";
+import { DesignSystemProject, PlatformId, platformOrder, resolveComponent, resolveLayout, resolveResponsiveScale, resolveScaleToken, resolveSemantic, typographyFamilyForLevel } from "./model";
 
 export type FigmaMcpCategory = "colors" | "typography" | "scales" | "semantics" | "components" | "themes" | "platforms";
 export type FigmaConflictPolicy = "review" | "update-by-name" | "skip-existing";
@@ -163,7 +163,34 @@ function layoutCollection(project: DesignSystemProject, options: FigmaMcpExportO
 function typographyResources(project: DesignSystemProject, options: FigmaMcpExportOptions) {
   if (!selected(options, "typography")) return [];
   const typography = project.foundations.typography;
-  return typography.levels.map((level) => ({ key: `typography.${slug(level.name)}`, name: `Typography/${pathName(level.name)}`, family: typography.family, source: typography.source, size: level.size, weight: level.weight, lineHeight: level.lineHeight, tracking: level.tracking, strategy: "text-style" as const }));
+  return typography.levels.map((level) => { const family = typographyFamilyForLevel(typography, level); return { key: `typography.${slug(level.name)}`, name: `Typography/${pathName(level.name)}`, family: family?.family || "system-ui", source: family?.source || "system", size: level.size, weight: level.weight, lineHeight: level.lineHeight, tracking: level.tracking, strategy: "text-style" as const }; });
+}
+
+function typographyCollections(project: DesignSystemProject, options: FigmaMcpExportOptions): ManifestCollection[] {
+  if (!selected(options, "typography")) return [];
+  const typography = project.foundations.typography;
+  const primitives: ManifestCollection = {
+    key: "primitives-typography",
+    name: "Primitives · Typography",
+    strategy: "variables",
+    modes: [{ key: "base", name: "Base" }],
+    variables: typography.families.map((family) => ({ key: `primitive.typography.family.${slug(family.id)}`, name: `Typography/Family/${pathName(family.family)}`, type: "STRING", description: `${family.source} · foundation de familia tipográfica`, scopes: [], exposure: "internal", hiddenFromPublishing: true, valuesByMode: { base: { kind: "literal", value: family.family, source: family.id } } })),
+  };
+  const semanticVariables: ManifestVariable[] = typography.levels.flatMap((level) => {
+    const role = pathName(level.name);
+    const family = typographyFamilyForLevel(typography, level);
+    const familyTarget = family ? `primitive.typography.family.${slug(family.id)}` : "";
+    const numberVariable = (suffix: string, value: number, scopes: string[], unit?: string): ManifestVariable => ({ key: `typography.${slug(level.name)}.${slug(suffix)}`, name: `Typography/${role}/${suffix}`, type: "FLOAT", description: `${role} · ${suffix}`, scopes, exposure: "contextual", hiddenFromPublishing: false, valuesByMode: { base: { kind: "literal", value, source: `typography.${level.id}.${slug(suffix)}`, unit } } });
+    return [
+      { key: `typography.${slug(level.name)}.family`, name: `Typography/${role}/Family`, type: "STRING", description: `${role} · familia tipográfica`, scopes: ["FONT_FAMILY"], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: { base: familyTarget ? { kind: "alias", target: familyTarget, source: family?.id || "" } : { kind: "missing", source: level.familyId } } } as ManifestVariable,
+      numberVariable("Size", level.size, ["FONT_SIZE"], "px"),
+      numberVariable("Weight", level.weight, ["FONT_WEIGHT"]),
+      numberVariable("Line height", level.lineHeight, ["LINE_HEIGHT"]),
+      numberVariable("Letter spacing", level.tracking, ["LETTER_SPACING"], "em"),
+    ];
+  });
+  const semantic: ManifestCollection = { key: "typography", name: "Typography · Roles", strategy: "variables", modes: [{ key: "base", name: "Base" }], variables: semanticVariables };
+  return [primitives, semantic];
 }
 
 function buildManifest(project: DesignSystemProject, options: FigmaMcpExportOptions) {
@@ -171,6 +198,7 @@ function buildManifest(project: DesignSystemProject, options: FigmaMcpExportOpti
   const semantic = semanticCollection(project, options, primitiveIndex);
   const components = componentCollection(project, options, primitiveIndex);
   const layout = layoutCollection(project, options);
+  collections.push(...typographyCollections(project, options));
   if (semantic) collections.push(semantic);
   if (components) collections.push(components);
   if (layout) collections.push(layout);

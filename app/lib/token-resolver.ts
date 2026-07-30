@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { DesignSystemProject, PlatformId, requiredSemanticIds, resolveComponent, resolveSemantic } from "./model";
+import { DesignSystemProject, PlatformId, primaryTypographyFamily, requiredSemanticIds, resolveComponent, resolveSemantic, typographyFamilyForLevel, typographyLevelForRole } from "./model";
 
 export type ResolvedProjectTokens = {
   ready: boolean;
@@ -33,6 +33,13 @@ export function resolveProjectTokens(project: DesignSystemProject, themeId: stri
     ...requiredSemanticIds.filter((id) => !semantic[id]).map((id) => `semantic:${id}`),
     ...Object.entries(componentMap).filter(([key]) => !component[key]).map(([, id]) => `component:${id}`),
   ];
+  const typography = project.foundations.typography;
+  const primaryFamily = primaryTypographyFamily(typography)?.family || "system-ui";
+  const roleFamily = (role: "caption" | "body" | "label" | "heading" | "display") => {
+    const level = typographyLevelForRole(typography, role);
+    return level ? typographyFamilyForLevel(typography, level)?.family || primaryFamily : primaryFamily;
+  };
+  const familyStack = (family: string) => `'${family.replaceAll("'", "\\'")}', system-ui, sans-serif`;
   const cssVariables = {
     "--ds-surface": semantic["surface-default"],
     "--ds-surface-raised": semantic["surface-raised"],
@@ -59,7 +66,12 @@ export function resolveProjectTokens(project: DesignSystemProject, themeId: stri
     "--ds-card-radius": component.cardRadius,
     "--ds-control-radius": component.controlRadius,
     "--ds-card-shadow": component.cardShadow,
-    "--ds-font": `'${project.foundations.typography.family}', system-ui, sans-serif`,
+    "--ds-font": familyStack(primaryFamily),
+    "--ds-font-caption": familyStack(roleFamily("caption")),
+    "--ds-font-body": familyStack(roleFamily("body")),
+    "--ds-font-label": familyStack(roleFamily("label")),
+    "--ds-font-heading": familyStack(roleFamily("heading")),
+    "--ds-font-display": familyStack(roleFamily("display")),
   } as CSSProperties;
   return { ready: missing.length === 0 && project.projectState !== "blank", status: missing.length === 0 && project.projectState !== "blank" ? "ready" : "pending", themeId, platform, missing, semantic, component, cssVariables };
 }
