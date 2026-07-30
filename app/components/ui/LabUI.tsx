@@ -1,6 +1,6 @@
 "use client";
 
-import { ComponentPropsWithoutRef, KeyboardEvent, ReactNode, useId, useMemo, useRef, useState } from "react";
+import { ComponentPropsWithoutRef, createContext, KeyboardEvent, ReactNode, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import * as DropdownPrimitive from "@radix-ui/react-dropdown-menu";
 import * as Popover from "@radix-ui/react-popover";
@@ -9,9 +9,12 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { CircleCheck, CircleX, TriangleAlert } from "lucide-react";
+import { CircleCheck, CircleX, TriangleAlert, X } from "lucide-react";
 import { BrandMark } from "../BrandMark";
 import { ActivityIcon, CheckIcon, ChevronDownIcon, ExportIcon, FolderIcon, InfoIcon, SearchIcon } from "./Icons";
+
+const OverlayPortalContext = createContext<HTMLElement | null>(null);
+const useOverlayPortal = () => useContext(OverlayPortalContext);
 
 type ButtonProps = ComponentPropsWithoutRef<"button"> & { variant?: "primary" | "secondary" | "quiet" | "danger"; size?: "sm" | "md" | "lg" };
 export function Button({ variant = "secondary", size = "md", className = "", ...props }: ButtonProps) {
@@ -39,10 +42,12 @@ export function Textarea({ label, help, error, className = "", ...props }: Compo
 
 export type SelectOption = { value: string; label: string; meta?: string };
 export function Select({ label, value, onValueChange, options, disabled, placeholder = "Seleccionar" }: { label?: string; value?: string; onValueChange: (value: string) => void; options: SelectOption[]; disabled?: boolean; placeholder?: string }) {
-  return <label className="ui-field"><span className="ui-field-label">{label}</span><SelectPrimitive.Root value={value} onValueChange={onValueChange} disabled={disabled}><SelectPrimitive.Trigger className="ui-select-trigger"><SelectPrimitive.Value placeholder={placeholder} /><SelectPrimitive.Icon><ChevronDownIcon /></SelectPrimitive.Icon></SelectPrimitive.Trigger><SelectPrimitive.Portal><SelectPrimitive.Content className="ui-select-content" position="popper" sideOffset={6}><SelectPrimitive.Viewport>{options.map((option) => <SelectPrimitive.Item key={option.value} value={option.value} className="ui-select-item"><span><SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>{option.meta ? <small>{option.meta}</small> : null}</span><SelectPrimitive.ItemIndicator><CheckIcon /></SelectPrimitive.ItemIndicator></SelectPrimitive.Item>)}</SelectPrimitive.Viewport></SelectPrimitive.Content></SelectPrimitive.Portal></SelectPrimitive.Root></label>;
+  const portal = useOverlayPortal();
+  return <label className="ui-field"><span className="ui-field-label">{label}</span><SelectPrimitive.Root value={value} onValueChange={onValueChange} disabled={disabled}><SelectPrimitive.Trigger className="ui-select-trigger"><SelectPrimitive.Value placeholder={placeholder} /><SelectPrimitive.Icon><ChevronDownIcon /></SelectPrimitive.Icon></SelectPrimitive.Trigger><SelectPrimitive.Portal container={portal || undefined}><SelectPrimitive.Content className="ui-select-content" position="popper" sideOffset={6}><SelectPrimitive.Viewport>{options.map((option) => <SelectPrimitive.Item key={option.value} value={option.value} className="ui-select-item"><span><SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>{option.meta ? <small>{option.meta}</small> : null}</span><SelectPrimitive.ItemIndicator><CheckIcon /></SelectPrimitive.ItemIndicator></SelectPrimitive.Item>)}</SelectPrimitive.Viewport></SelectPrimitive.Content></SelectPrimitive.Portal></SelectPrimitive.Root></label>;
 }
 
 export function Combobox({ label, value, onValueChange, options, placeholder = "Buscar o seleccionar", renderOption }: { label?: string; value: string; onValueChange: (value: string) => void; options: SelectOption[]; placeholder?: string; renderOption?: (option: SelectOption) => ReactNode }) {
+  const portal = useOverlayPortal();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -78,7 +83,7 @@ export function Combobox({ label, value, onValueChange, options, placeholder = "
       queueMicrotask(() => { suppressFocusOpenRef.current = false; });
     }
   };
-  return <div className="ui-field"><span className="ui-field-label">{label}</span><Popover.Root open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); if (nextOpen) { const selectedIndex = filtered.findIndex((option) => option.value === value); setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0); } else setQuery(""); }}><Popover.Anchor asChild><div className="ui-combobox-trigger"><SearchIcon /><input ref={inputRef} role="combobox" aria-label={label} aria-autocomplete="list" aria-expanded={open} aria-haspopup="listbox" aria-controls={listboxId} aria-activedescendant={open && filtered[normalizedActiveIndex] ? `${listboxId}-option-${normalizedActiveIndex}` : undefined} value={open ? query : current?.label || value} placeholder={placeholder} onFocus={() => { if (suppressFocusOpenRef.current) return; setOpen(true); }} onClick={() => setOpen(true)} onChange={(event) => { if (!open) setOpen(true); setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={handleSearchKeyDown} /><Popover.Trigger asChild><button type="button" aria-label={open ? "Cerrar opciones" : "Abrir opciones"} tabIndex={-1}><ChevronDownIcon /></button></Popover.Trigger></div></Popover.Anchor><Popover.Portal><Popover.Content role="presentation" className="ui-combobox-content" sideOffset={6} align="start" onOpenAutoFocus={(event) => event.preventDefault()}><div className="ui-combobox-list" id={listboxId} role="listbox" aria-label={label}>{filtered.map((option, index) => <button type="button" role="option" id={`${listboxId}-option-${index}`} aria-selected={option.value === value} key={option.value} className={`${option.value === value ? "selected" : ""} ${index === normalizedActiveIndex ? "active" : ""}`} tabIndex={-1} onMouseMove={() => setActiveIndex(index)} onClick={() => chooseOption(option)}>{renderOption ? renderOption(option) : <span><b>{option.label}</b>{option.meta ? <small>{option.meta}</small> : null}</span>}{option.value === value ? <CheckIcon /> : null}</button>)}{!filtered.length ? <p>Sin coincidencias. Podés ingresar una familia personalizada.</p> : null}</div></Popover.Content></Popover.Portal></Popover.Root></div>;
+  return <div className="ui-field"><span className="ui-field-label">{label}</span><Popover.Root open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); if (nextOpen) { const selectedIndex = filtered.findIndex((option) => option.value === value); setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0); } else setQuery(""); }}><Popover.Anchor asChild><div className="ui-combobox-trigger"><SearchIcon /><input ref={inputRef} role="combobox" aria-label={label} aria-autocomplete="list" aria-expanded={open} aria-haspopup="listbox" aria-controls={listboxId} aria-activedescendant={open && filtered[normalizedActiveIndex] ? `${listboxId}-option-${normalizedActiveIndex}` : undefined} value={open ? query : current?.label || value} placeholder={placeholder} onFocus={() => { if (suppressFocusOpenRef.current) return; setOpen(true); }} onClick={() => setOpen(true)} onChange={(event) => { if (!open) setOpen(true); setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={handleSearchKeyDown} /><Popover.Trigger asChild><button type="button" aria-label={open ? "Cerrar opciones" : "Abrir opciones"} tabIndex={-1}><ChevronDownIcon /></button></Popover.Trigger></div></Popover.Anchor><Popover.Portal container={portal || undefined}><Popover.Content role="presentation" className="ui-combobox-content" sideOffset={6} align="start" onOpenAutoFocus={(event) => event.preventDefault()}><div className="ui-combobox-list" id={listboxId} role="listbox" aria-label={label}>{filtered.map((option, index) => <button type="button" role="option" id={`${listboxId}-option-${index}`} aria-selected={option.value === value} key={option.value} className={`${option.value === value ? "selected" : ""} ${index === normalizedActiveIndex ? "active" : ""}`} tabIndex={-1} onMouseMove={() => setActiveIndex(index)} onClick={() => chooseOption(option)}>{renderOption ? renderOption(option) : <span><b>{option.label}</b>{option.meta ? <small>{option.meta}</small> : null}</span>}{option.value === value ? <CheckIcon /> : null}</button>)}{!filtered.length ? <p>Sin coincidencias. Podés ingresar una familia personalizada.</p> : null}</div></Popover.Content></Popover.Portal></Popover.Root></div>;
 }
 
 export function Checkbox({ checked, onCheckedChange, label, disabled }: { checked: boolean; onCheckedChange: (checked: boolean) => void; label: ReactNode; disabled?: boolean }) {
@@ -102,12 +107,40 @@ export function SectionHeading({ title, description, action, level = 1 }: { titl
   const Title = level === 1 ? "h1" : "h2";
   return <header className={`ui-section-heading level-${level}`}><div><Title>{title}</Title>{description ? <p>{description}</p> : null}</div>{action}</header>;
 }
-export function HelpTooltip({ label, children }: { label: string; children: ReactNode }) {
-  return <TooltipPrimitive.Provider delayDuration={250}><TooltipPrimitive.Root><TooltipPrimitive.Trigger asChild><IconButton label={label}><InfoIcon /></IconButton></TooltipPrimitive.Trigger><TooltipPrimitive.Portal><TooltipPrimitive.Content className="ui-tooltip" sideOffset={7}>{children}<TooltipPrimitive.Arrow className="ui-tooltip-arrow" /></TooltipPrimitive.Content></TooltipPrimitive.Portal></TooltipPrimitive.Root></TooltipPrimitive.Provider>;
+
+export function Dialog({ open, onOpenChange, title, description, variant = "modal", children, className = "" }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; description?: string; variant?: "modal" | "drawer"; children: ReactNode; className?: string }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const [portal, setPortal] = useState<HTMLDivElement | null>(null);
+  const titleId = `dialog-title-${useId()}`;
+  const descriptionId = `dialog-description-${useId()}`;
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!open || !dialog) return;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    if (!dialog.open) dialog.showModal();
+    queueMicrotask(() => dialog.querySelector<HTMLElement>("[data-dialog-close]")?.focus());
+    return () => {
+      if (dialog.open) dialog.close();
+      document.body.style.overflow = previousOverflow;
+      returnFocusRef.current?.focus();
+    };
+  }, [open]);
+  if (!open) return null;
+  const close = () => onOpenChange(false);
+  return <dialog ref={dialogRef} className={`ui-dialog-overlay ui-dialog-${variant}`} aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} onCancel={(event) => { event.preventDefault(); close(); }} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); close(); } }} onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}><OverlayPortalContext.Provider value={portal}><div className={`ui-dialog-panel ${className}`}><header className="ui-dialog-header"><div><h1 id={titleId}>{title}</h1>{description ? <p id={descriptionId}>{description}</p> : null}</div><IconButton label="Cerrar" data-dialog-close onClick={close}><X /></IconButton></header><div className="ui-dialog-body">{children}</div><div ref={setPortal} className="ui-dialog-portal-host" /></div></OverlayPortalContext.Provider></dialog>;
 }
 
-export function DropdownMenu({ trigger, items, label }: { trigger: ReactNode; label: string; items: { label: string; icon?: ReactNode; onSelect: () => void; disabled?: boolean }[] }) {
-  return <DropdownPrimitive.Root><DropdownPrimitive.Trigger asChild>{trigger}</DropdownPrimitive.Trigger><DropdownPrimitive.Portal><DropdownPrimitive.Content className="ui-menu-content" sideOffset={7} align="start" aria-label={label}>{items.map((item) => <DropdownPrimitive.Item key={item.label} className="ui-menu-item" onSelect={item.onSelect} disabled={item.disabled}>{item.icon}<span>{item.label}</span></DropdownPrimitive.Item>)}</DropdownPrimitive.Content></DropdownPrimitive.Portal></DropdownPrimitive.Root>;
+export function HelpTooltip({ label, children }: { label: string; children: ReactNode }) {
+  const portal = useOverlayPortal();
+  return <TooltipPrimitive.Provider delayDuration={250}><TooltipPrimitive.Root><TooltipPrimitive.Trigger asChild><IconButton label={label}><InfoIcon /></IconButton></TooltipPrimitive.Trigger><TooltipPrimitive.Portal container={portal || undefined}><TooltipPrimitive.Content className="ui-tooltip" sideOffset={7}>{children}<TooltipPrimitive.Arrow className="ui-tooltip-arrow" /></TooltipPrimitive.Content></TooltipPrimitive.Portal></TooltipPrimitive.Root></TooltipPrimitive.Provider>;
+}
+
+export function DropdownMenu({ trigger, items, label, modal = false }: { trigger: ReactNode; label: string; modal?: boolean; items: { label: string; icon?: ReactNode; onSelect: () => void; disabled?: boolean }[] }) {
+  const portal = useOverlayPortal();
+  return <DropdownPrimitive.Root modal={modal}><DropdownPrimitive.Trigger asChild>{trigger}</DropdownPrimitive.Trigger><DropdownPrimitive.Portal container={portal || undefined}><DropdownPrimitive.Content className="ui-menu-content" sideOffset={7} align="start" aria-label={label}>{items.map((item) => <DropdownPrimitive.Item key={item.label} className="ui-menu-item" onSelect={item.onSelect} disabled={item.disabled}>{item.icon}<span>{item.label}</span></DropdownPrimitive.Item>)}</DropdownPrimitive.Content></DropdownPrimitive.Portal></DropdownPrimitive.Root>;
 }
 export function Tabs({ value, onValueChange, tabs, ariaLabel }: { value: string; onValueChange: (value: string) => void; tabs: { value: string; label: string; content?: ReactNode }[]; ariaLabel: string }) {
   return <TabsPrimitive.Root className="ui-tabs" value={value} onValueChange={onValueChange}><TabsPrimitive.List aria-label={ariaLabel}>{tabs.map((tab) => <TabsPrimitive.Trigger key={tab.value} value={tab.value}>{tab.label}</TabsPrimitive.Trigger>)}</TabsPrimitive.List>{tabs.map((tab) => tab.content ? <TabsPrimitive.Content key={tab.value} value={tab.value}>{tab.content}</TabsPrimitive.Content> : null)}</TabsPrimitive.Root>;
@@ -115,7 +148,8 @@ export function Tabs({ value, onValueChange, tabs, ariaLabel }: { value: string;
 
 export function HealthIndicator({ score, status, summary, onClick }: { score: number | null; status: "ready" | "attention" | "pending"; summary: string; onClick: () => void }) {
   const label = status === "pending" ? "Sin evaluar" : `${score}%`;
-  return <TooltipPrimitive.Provider delayDuration={250}><TooltipPrimitive.Root><TooltipPrimitive.Trigger asChild><button className={`ui-health ui-health-${status}`} onClick={onClick} aria-label={`Salud del sistema: ${summary}`}><ActivityIcon /><span>{label}</span></button></TooltipPrimitive.Trigger><TooltipPrimitive.Portal><TooltipPrimitive.Content className="ui-tooltip" sideOffset={7}><b>{summary}</b><span>{status === "pending" ? "Completá la base para iniciar la evaluación." : "Abrir cobertura, hallazgos y escenarios."}</span><TooltipPrimitive.Arrow className="ui-tooltip-arrow" /></TooltipPrimitive.Content></TooltipPrimitive.Portal></TooltipPrimitive.Root></TooltipPrimitive.Provider>;
+  const portal = useOverlayPortal();
+  return <TooltipPrimitive.Provider delayDuration={250}><TooltipPrimitive.Root><TooltipPrimitive.Trigger asChild><button className={`ui-health ui-health-${status}`} onClick={onClick} aria-label={`Salud del sistema: ${summary}`}><ActivityIcon /><span>{label}</span></button></TooltipPrimitive.Trigger><TooltipPrimitive.Portal container={portal || undefined}><TooltipPrimitive.Content className="ui-tooltip" sideOffset={7}><b>{summary}</b><span>{status === "pending" ? "Completá la base para iniciar la evaluación." : "Abrir cobertura, hallazgos y escenarios."}</span><TooltipPrimitive.Arrow className="ui-tooltip-arrow" /></TooltipPrimitive.Content></TooltipPrimitive.Portal></TooltipPrimitive.Root></TooltipPrimitive.Provider>;
 }
 
 export function ProjectMenu({ onImport, onDownload, onDuplicate }: { onImport: () => void; onDownload: () => void; onDuplicate: () => void }) {
@@ -125,6 +159,6 @@ export function ExportMenu({ onConfigure, onQuickExport }: { onConfigure: () => 
   return <div className="ui-split-button"><Button variant="primary" onClick={onConfigure}><ExportIcon /> Exportar</Button><DropdownMenu label="Accesos de exportación" trigger={<IconButton label="Más opciones de exportación"><ChevronDownIcon /></IconButton>} items={[{ label: "Configurar exportación", onSelect: onConfigure }, { label: "Exportar última selección", onSelect: onQuickExport }]} /></div>;
 }
 
-export function LabHeader({ projectName, health, themeAction, projectMenu, exportMenu }: { projectName: string; health: ReactNode; themeAction: ReactNode; projectMenu: ReactNode; exportMenu: ReactNode }) {
-  return <header className="ui-header"><div className="ui-project-name"><BrandMark className="ui-brand-mark" size={36} /><span>{projectName}</span>{health}</div><div className="ui-header-actions">{projectMenu}{exportMenu}<span className="ui-header-divider" />{themeAction}</div></header>;
+export function LabHeader({ projectName, onOpenProject, health, themeAction, projectMenu, exportMenu }: { projectName: string; onOpenProject: () => void; health: ReactNode; themeAction: ReactNode; projectMenu: ReactNode; exportMenu: ReactNode }) {
+  return <header className="ui-header"><div className="ui-project-context"><button type="button" className="ui-project-trigger" aria-haspopup="dialog" onClick={onOpenProject}><BrandMark className="ui-brand-mark" size={36} /><span>{projectName}</span></button>{health}</div><div className="ui-header-actions">{projectMenu}{exportMenu}<span className="ui-header-divider" />{themeAction}</div></header>;
 }

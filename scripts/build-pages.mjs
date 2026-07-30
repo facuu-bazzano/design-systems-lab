@@ -12,8 +12,8 @@ const nextResult = spawnSync(process.execPath, [nextCli, "build"], {
 if (nextResult.status !== 0) process.exit(nextResult.status ?? 1);
 writeFileSync(resolve("out", ".nojekyll"), "");
 
-const storybookCli = resolve("node_modules", "storybook", "dist", "bin", "dispatcher.js");
-const storybookResult = spawnSync(process.execPath, [storybookCli, "build", "--output-dir", resolve("out", "storybook")], {
+const storybookScript = resolve("scripts", "build-storybook.mjs");
+const storybookResult = spawnSync(process.execPath, [storybookScript, resolve("out", "storybook")], {
   stdio: "inherit",
   env: { ...process.env, STORYBOOK_BASE_PATH: `${basePath}/storybook/`, NEXT_PUBLIC_PAGES_BASE_PATH: basePath },
 });

@@ -60,7 +60,9 @@ test("keeps v3 capabilities in one serializable project model", async () => {
   assert.match(page, /localStorage\.setItem/);
   assert.match(page, /importProject/);
   assert.match(page, /Configurar exportación/);
-  assert.match(page, /type MainSection = "project" \| "colors" \| "typography" \| "scales" \| "semantics" \| "components" \| "catalog" \| "health"/);
+  assert.match(page, /type MainSection = "colors" \| "typography" \| "scales" \| "semantics" \| "components" \| "catalog" \| "health"/);
+  assert.doesNotMatch(page, /id: "project", label: "Proyecto"/);
+  assert.match(page, /onOpenProject=\{\(\) => setProjectOpen\(true\)\}/);
   assert.doesNotMatch(page, /Handoff/);
   assert.match(previews, /@radix-ui\/react-checkbox/);
   assert.match(catalog, /@radix-ui\/react-radio-group/);

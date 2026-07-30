@@ -13,7 +13,8 @@ export type FigmaMcpExportOptions = {
 type FigmaVariableType = "COLOR" | "FLOAT" | "STRING" | "BOOLEAN";
 type ManifestValue = { kind: "literal"; value: string | number | boolean; source?: string; unit?: string } | { kind: "alias"; target: string; source: string } | { kind: "missing"; source: string };
 type ManifestMode = { key: string; name: string; themeId?: string; platformId?: PlatformId };
-type ManifestVariable = { key: string; name: string; type: FigmaVariableType; description: string; scopes: string[]; valuesByMode: Record<string, ManifestValue> };
+type VariableExposure = "internal" | "contextual";
+type ManifestVariable = { key: string; name: string; type: FigmaVariableType; description: string; scopes: string[]; exposure: VariableExposure; hiddenFromPublishing: boolean; valuesByMode: Record<string, ManifestValue> };
 type ManifestCollection = { key: string; name: string; strategy: "variables" | "reference"; modes: ManifestMode[]; variables: ManifestVariable[] };
 
 const officialSources = {
@@ -27,6 +28,33 @@ const slug = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\
 const pathName = (value: string) => value.split(/[./]/).filter(Boolean).map((part) => part.trim()).join("/");
 const enabledPlatforms = (project: DesignSystemProject) => platformOrder.filter((id) => project.platforms[id].enabled);
 const selected = (options: FigmaMcpExportOptions, category: FigmaMcpCategory) => options.categories.includes(category);
+const uniqueScopes = (...groups: string[][]) => [...new Set(groups.flat())];
+
+const semanticScopes = (id: string, category: string) => {
+  if (category === "Texto" || id === "disabled-content") return ["TEXT_FILL"];
+  if (category === "Borde" || id === "selected-border") return ["STROKE_COLOR"];
+  if (category === "Foco") return ["STROKE_COLOR", "EFFECT_COLOR"];
+  if (category === "Feedback") return ["FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR"];
+  return ["FRAME_FILL", "SHAPE_FILL"];
+};
+
+const primitiveNumberScopes = (reference: string) => {
+  if (reference.startsWith("primitive:radii.")) return ["CORNER_RADIUS"];
+  if (reference.startsWith("primitive:spacing.")) return ["GAP"];
+  if (reference.startsWith("primitive:dimensions.")) return ["WIDTH_HEIGHT"];
+  if (reference.startsWith("primitive:borders.")) return ["STROKE_FLOAT"];
+  if (reference.startsWith("primitive:opacity.")) return ["OPACITY"];
+  return [];
+};
+
+const componentColorScopes = (name: string, semanticId?: string) => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("foreground") || normalized.startsWith("link.") || normalized === "tabs.item.selected" || normalized === "tabs.item.foreground") return ["TEXT_FILL"];
+  if (normalized.includes("focus") || normalized.includes("ring")) return ["STROKE_COLOR", "EFFECT_COLOR"];
+  if (normalized.includes("border") || normalized.includes("divider")) return ["STROKE_COLOR"];
+  if (normalized.includes("background") || normalized.includes("hover") || normalized.includes("pressed") || normalized.includes("indicator") || normalized.includes("track") || normalized.includes("thumb")) return ["FRAME_FILL", "SHAPE_FILL"];
+  return semanticId ? semanticScopes(semanticId, "") : [];
+};
 
 function parsePrimitiveValue(value: string): { type: FigmaVariableType; value: string | number; unit?: string } {
   const trimmed = value.trim();
@@ -48,7 +76,7 @@ function primitiveCollections(project: DesignSystemProject, options: FigmaMcpExp
       const reference = `${palette.name}.${step}`;
       const key = `primitive.color.${slug(palette.name)}.${slug(step)}`;
       primitiveIndex.set(reference, key);
-      return { key, name: `Color/${pathName(palette.name)}/${step}`, type: "COLOR" as const, description: `${palette.name} · tono ${step}`, scopes: ["ALL_FILLS", "STROKE_COLOR"], valuesByMode: { base: { kind: "literal" as const, value: palette.scale[step], source: reference } } };
+      return { key, name: `Color/${pathName(palette.name)}/${step}`, type: "COLOR" as const, description: `${palette.name} · tono ${step}`, scopes: [], exposure: "internal" as const, hiddenFromPublishing: true, valuesByMode: { base: { kind: "literal" as const, value: palette.scale[step], source: reference } } };
     }));
     collections.push({ key: "primitives-color", name: "Primitives · Color", strategy: "variables", modes: [{ key: "base", name: "Base" }], variables });
   }
@@ -58,7 +86,7 @@ function primitiveCollections(project: DesignSystemProject, options: FigmaMcpExp
       const key = `primitive.${group}.${slug(token.name)}`;
       const parsed = parsePrimitiveValue(token.value);
       primitiveIndex.set(reference, key);
-      return { key, name: `${pathName(group)}/${pathName(token.name)}`, type: parsed.type, description: `Foundation ${group}`, scopes: parsed.type === "FLOAT" ? ["GAP", "WIDTH_HEIGHT"] : [], valuesByMode: { base: { kind: "literal" as const, value: parsed.value, source: reference, unit: parsed.unit } } };
+      return { key, name: `${pathName(group)}/${pathName(token.name)}`, type: parsed.type, description: `Foundation ${group}`, scopes: [], exposure: "internal" as const, hiddenFromPublishing: true, valuesByMode: { base: { kind: "literal" as const, value: parsed.value, source: reference, unit: parsed.unit } } };
     }));
     collections.push({ key: "primitives-scales", name: "Primitives · Escalas", strategy: "variables", modes: [{ key: "base", name: "Base" }], variables });
   }
@@ -73,7 +101,9 @@ function semanticCollection(project: DesignSystemProject, options: FigmaMcpExpor
     name: `Semantic/${pathName(token.name)}`,
     type: "COLOR" as const,
     description: token.description,
-    scopes: token.category === "Texto" ? ["TEXT_FILL"] : token.category === "Borde" ? ["STROKE_COLOR"] : ["ALL_FILLS", "STROKE_COLOR"],
+    scopes: semanticScopes(token.id, token.category),
+    exposure: "contextual" as const,
+    hiddenFromPublishing: false,
     valuesByMode: Object.fromEntries(modes.map((mode) => {
       const reference = token.platformRefs[mode.platformId!] || token.themeRefs[mode.themeId!] || token.defaultRef;
       const primitiveKey = !reference.includes("@") ? primitiveIndex.get(reference) : undefined;
@@ -91,12 +121,18 @@ function componentCollection(project: DesignSystemProject, options: FigmaMcpExpo
     const defaultReference = token.reference;
     const primitive = defaultReference.startsWith("primitive:") ? parsePrimitiveValue(resolveScaleToken(project, defaultReference)) : undefined;
     const type: FigmaVariableType = defaultReference.startsWith("semantic:") ? "COLOR" : primitive?.type || "STRING";
+    const references = [defaultReference, ...Object.values(token.platformRefs)];
+    const scopes = type === "COLOR"
+      ? uniqueScopes(...references.map((reference) => componentColorScopes(token.name, reference.startsWith("semantic:") ? reference.slice(9) : undefined)))
+      : type === "FLOAT" ? uniqueScopes(...references.map(primitiveNumberScopes)) : [];
     return {
       key: `component.${token.id}`,
       name: `Component/${pathName(token.component)}/${pathName(token.name)}`,
       type,
       description: token.description,
-      scopes: type === "COLOR" ? ["ALL_FILLS", "STROKE_COLOR", "TEXT_FILL"] : type === "FLOAT" ? ["GAP", "WIDTH_HEIGHT"] : [],
+      scopes,
+      exposure: "contextual" as const,
+      hiddenFromPublishing: false,
       valuesByMode: Object.fromEntries(modes.map((mode) => {
         const reference = token.platformRefs[mode.platformId!] || token.reference;
         const semanticId = reference.startsWith("semantic:") ? reference.slice(9) : undefined;
@@ -118,9 +154,9 @@ function layoutCollection(project: DesignSystemProject, options: FigmaMcpExportO
   if (!selected(options, "platforms") && !selected(options, "scales")) return;
   const modes: ManifestMode[] = enabledPlatforms(project).map((platformId) => ({ key: platformId, name: project.platforms[platformId].name, platformId }));
   const fields = ["columns", "margin", "gutter", "maxWidth", "breakpoint", "baseline"] as const;
-  const variables: ManifestVariable[] = fields.map((field) => ({ key: `layout.${field}`, name: `Layout/${field}`, type: "FLOAT", description: `Layout resuelto · ${field}`, scopes: field === "columns" ? [] : ["GAP", "WIDTH_HEIGHT"], valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveLayout(project, mode.platformId!)[field], source: `layout.${mode.platformId}.${field}`, unit: field === "columns" ? undefined : "px" }])) }));
-  variables.push({ key: "layout.baseline-enabled", name: "Layout/baselineEnabled", type: "BOOLEAN", description: "Activa la grilla de línea base", scopes: [], valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveLayout(project, mode.platformId!).baselineEnabled, source: `layout.${mode.platformId}.baselineEnabled` }])) });
-  for (const field of ["typography", "spacing", "dimensions"] as const) variables.push({ key: `responsive.${field}`, name: `Responsive/${field}`, type: "FLOAT", description: `Multiplicador responsivo · ${field}`, scopes: [], valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveResponsiveScale(project, mode.platformId!)[field], source: `responsive.${mode.platformId}.${field}` }])) });
+  const variables: ManifestVariable[] = fields.map((field) => ({ key: `layout.${field}`, name: `Layout/${field}`, type: "FLOAT", description: `Layout resuelto · ${field}`, scopes: field === "margin" || field === "gutter" || field === "baseline" ? ["GAP"] : field === "maxWidth" || field === "breakpoint" ? ["WIDTH_HEIGHT"] : [], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveLayout(project, mode.platformId!)[field], source: `layout.${mode.platformId}.${field}`, unit: field === "columns" ? undefined : "px" }])) }));
+  variables.push({ key: "layout.baseline-enabled", name: "Layout/baselineEnabled", type: "BOOLEAN", description: "Activa la grilla de línea base", scopes: [], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveLayout(project, mode.platformId!).baselineEnabled, source: `layout.${mode.platformId}.baselineEnabled` }])) });
+  for (const field of ["typography", "spacing", "dimensions"] as const) variables.push({ key: `responsive.${field}`, name: `Responsive/${field}`, type: "FLOAT", description: `Multiplicador responsivo · ${field}`, scopes: [], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveResponsiveScale(project, mode.platformId!)[field], source: `responsive.${mode.platformId}.${field}` }])) });
   return { key: "layout-responsive", name: "Layout · Responsive", strategy: "variables", modes, variables };
 }
 
@@ -139,9 +175,22 @@ function buildManifest(project: DesignSystemProject, options: FigmaMcpExportOpti
   if (components) collections.push(components);
   if (layout) collections.push(layout);
   return {
-    schemaVersion: "1.0",
+    schemaVersion: "1.1",
     source: { product: "Laboratorio de Sistemas de Diseño", projectId: project.id, projectName: project.meta.name, projectSchemaVersion: project.schemaVersion, projectUpdatedAt: project.meta.updatedAt },
     target: { fileUrl: options.targetFileUrl?.trim() || null, conflictPolicy: options.conflictPolicy, dryRun: options.dryRun },
+    scopePolicy: {
+      default: "contextual-only",
+      primitives: "internal-hidden-from-supported-property-pickers",
+      semantics: "role-based",
+      components: "usage-based",
+      allScopesAllowed: false,
+      supportedByType: {
+        COLOR: ["FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "EFFECT_COLOR"],
+        FLOAT: ["CORNER_RADIUS", "WIDTH_HEIGHT", "GAP", "TEXT_CONTENT", "STROKE_FLOAT", "OPACITY", "EFFECT_FLOAT", "FONT_WEIGHT", "FONT_SIZE", "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT"],
+        STRING: ["TEXT_CONTENT", "FONT_FAMILY", "FONT_STYLE"],
+        BOOLEAN: [],
+      },
+    },
     collections,
     resources: { typography: typographyResources(project, options), customFoundations: project.foundations.customFoundations },
   };
@@ -158,6 +207,8 @@ function validateManifest(project: DesignSystemProject, manifest: ReturnType<typ
   for (const collection of manifest.collections) for (const variable of collection.variables) {
     if (visitedKeys.has(variable.key)) errors.push({ code: "DUPLICATE_KEY", message: `La clave ${variable.key} está duplicada.`, target: variable.key });
     visitedKeys.add(variable.key);
+    if (variable.scopes.includes("ALL_SCOPES")) errors.push({ code: "UNSCOPED_EXPOSURE", message: `${variable.key} aparece en todas las propiedades; debe declarar una intención concreta.`, target: variable.key });
+    if (variable.key.startsWith("primitive.") && (variable.scopes.length || !variable.hiddenFromPublishing || variable.exposure !== "internal")) errors.push({ code: "PRIMITIVE_SCOPE_LEAK", message: `${variable.key} es primitiva y no debe aparecer en selectores de propiedades.`, target: variable.key });
     for (const value of Object.values(variable.valuesByMode)) {
       if (value.kind === "missing") errors.push({ code: "BROKEN_REFERENCE", message: `No se pudo resolver ${value.source}.`, target: variable.key });
       if (value.kind === "alias" && !keys.has(value.target)) errors.push({ code: "BROKEN_ALIAS", message: `El alias ${variable.key} apunta a ${value.target}, que no forma parte del paquete.`, target: variable.key });
@@ -184,9 +235,9 @@ ${target}
 1. Confirma el archivo objetivo y los permisos de edición. Si el cliente no expone acciones de escritura o \`use_figma\`, detente y explica la limitación.
 2. Carga las skills oficiales \`figma-use\` y \`figma-generate-library\` antes de escribir. Inspecciona collections, variables y estilos existentes.
 3. Presenta un dry-run con creados, actualizados, omitidos, conflictos y referencias rotas. Política de conflictos: \`${options.conflictPolicy}\`. Dry-run solicitado: \`${options.dryRun}\`.
-4. Aplica en este orden: primitives → layout/typography → semantic → component. Conserva aliases cuando el manifiesto use \`kind: alias\`.
+4. Aplica en este orden: primitives → layout/typography → semantic → component. Conserva aliases cuando el manifiesto use \`kind: alias\`. Crea las primitivas con \`hiddenFromPublishing: true\` y sin scopes; aplica a semánticas y componentes exclusivamente los scopes declarados.
 5. No dupliques por nombre o clave estable. Para cada conflicto, respeta la política y pide confirmación si la decisión no es reversible.
-6. Valida todos los modos, aliases, scopes y valores resueltos. Informa creados, actualizados, omitidos y errores.
+6. Valida todos los modos, aliases, scopes y valores resueltos. Nunca reemplaces scopes concretos por \`ALL_SCOPES\`. Informa creados, actualizados, omitidos y errores.
 
 ## Estado previo
 - Salud del Laboratorio: ${analyzeProject(project).score ?? "sin evaluar"}

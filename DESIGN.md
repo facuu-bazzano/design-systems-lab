@@ -137,7 +137,9 @@ Cards should not be nested inside cards unless the inner element is a genuine re
 
 - **Shape:** modest radius, stable height.
 - **Primary:** high contrast action accent; hover must preserve text contrast in both Lab themes.
+- **On-accent content:** text, icons, checkbox indicators, and split-button separators must resolve through the shared `--ui-on-accent` and `--ui-accent-separator` tokens. Do not assume white content is legible on every accent used by each Lab theme.
 - **Secondary:** neutral surface with border; should not compete with primary export/project actions.
+- **Ghost:** use for contextual actions embedded in stable chrome, including the project-name trigger. The resting state has no border; hover, pressed, and focus communicate interactivity without competing with Exportar.
 - **Danger:** use neutral trigger for low-frequency destructive affordances, escalating to a filled destructive action only at confirmation.
 
 ### Cards / Containers
@@ -154,7 +156,23 @@ Cards should not be nested inside cards unless the inner element is a genuine re
 
 ### Navigation
 
-Global navigation is: Proyecto, Color, Tipografia, Escalas y layout, Tokens semanticos, Tokens de componente, Catalogo, Salud del sistema. Exportar remains a header action, not a sidebar destination.
+Global navigation is: Color, Tipografia, Escalas y layout, Tokens semanticos, Tokens de componente, Catalogo, Salud del sistema. Project configuration opens from the project-name ghost action in the header and must not be duplicated in the sidebar. Exportar remains a header action, not a sidebar destination.
+
+### Dialogs, Menus, and Overlays
+
+- Project configuration and export configuration use the shared `Dialog` primitive. It owns focus trapping, initial focus, Escape, backdrop dismissal, background scroll lock, and focus restoration.
+- The dialog header is stable while only the body scrolls. Nested Select, Combobox, Tooltip, and Menu portals render inside the active dialog so their content remains visible and interactive.
+- Header dropdown menus are non-modal: opening them must not block page scrolling. A menu is not a dialog and must not inherit dialog scroll-lock behavior.
+- Modal/drawer entry uses only opacity and transform with shared motion tokens. Never use `transition: all`; reduced-motion keeps immediate, visible state feedback.
+
+### Figma Variable Scopes
+
+- Primitive variables are implementation details: export them with `scopes: []`, mark them internal, and hide them from publishing/property pickers.
+- Semantic variables expose only role-relevant scopes. Component variables expose only the concrete properties consumed by that component decision.
+- Never use `ALL_SCOPES` as a convenience fallback.
+- Supported color scopes are `FRAME_FILL`, `SHAPE_FILL`, `TEXT_FILL`, `STROKE_COLOR`, and `EFFECT_COLOR`.
+- Supported number scopes are `CORNER_RADIUS`, `WIDTH_HEIGHT`, `GAP`, `TEXT_CONTENT`, `STROKE_FLOAT`, `OPACITY`, `EFFECT_FLOAT`, `FONT_WEIGHT`, `FONT_SIZE`, `LINE_HEIGHT`, `LETTER_SPACING`, `PARAGRAPH_SPACING`, and `PARAGRAPH_INDENT`.
+- Supported string scopes are `TEXT_CONTENT`, `FONT_FAMILY`, and `FONT_STYLE`.
 
 ### Component Catalog
 

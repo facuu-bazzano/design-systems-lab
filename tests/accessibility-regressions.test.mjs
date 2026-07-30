@@ -10,13 +10,13 @@ const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
 const figmaMcp = readFileSync(new URL("../app/lib/figma-mcp.ts", import.meta.url), "utf8");
 
 test("exportación usa un diálogo modal con nombre, Escape y restauración de foco", () => {
-  assert.match(page, /<dialog ref=\{dialogRef\}/);
-  assert.match(page, /aria-labelledby="export-title"/);
-  assert.match(page, /aria-describedby="export-description"/);
-  assert.match(page, /dialog\.showModal\(\)/);
-  assert.match(page, /document\.body\.style\.overflow = "hidden"/);
-  assert.match(page, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); onClose\(\); \}\}/);
-  assert.match(page, /returnFocusRef\.current\?\.focus\(\)/);
+  assert.match(page, /<Dialog open=\{open\}/);
+  assert.match(ui, /<dialog ref=\{dialogRef\}/);
+  assert.match(ui, /aria-labelledby=\{titleId\}/);
+  assert.match(ui, /dialog\.showModal\(\)/);
+  assert.match(ui, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(ui, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); close\(\); \}\}/);
+  assert.match(ui, /returnFocusRef\.current\?\.focus\(\)/);
 });
 
 test("importación anuncia éxito y conserva errores con recuperación", () => {
@@ -37,9 +37,19 @@ test("navegación SPA expone sección actual, skip link y foco solicitado", () =
 });
 
 test("diálogo enfoca una acción real y no el contenedor visual", () => {
-  assert.match(page, /\[data-export-close\]/);
-  assert.match(page, /data-export-close onClick=\{onClose\}/);
-  assert.match(css, /\.export-panel-v4:focus\{outline:0\}/);
+  assert.match(ui, /\[data-dialog-close\]/);
+  assert.match(ui, /data-dialog-close onClick=\{close\}/);
+  assert.match(css, /\.ui-dialog-panel\{[^}]*grid-template-rows:auto minmax\(0,1fr\)/);
+  assert.match(css, /\.ui-dialog-body\{[^}]*overflow:auto/);
+  assert.match(css, /\.ui-dialog-header\{[^}]*border-bottom/);
+});
+
+test("menús no modales conservan el scroll y overlays anidados permanecen dentro del diálogo", () => {
+  assert.match(ui, /modal = false/);
+  assert.match(ui, /<DropdownPrimitive\.Root modal=\{modal\}>/);
+  assert.match(ui, /<SelectPrimitive\.Portal container=\{portal \|\| undefined\}>/);
+  assert.match(ui, /<Popover\.Portal container=\{portal \|\| undefined\}>/);
+  assert.match(css, /\.export-format-stack\{display:grid;gap:16px\}/);
 });
 
 test("Salud conserva un único main y etiqueta escenarios", () => {
@@ -72,9 +82,16 @@ test("campos editables móviles usan 16px sin alterar toda la tipografía", () =
 test("motion interno usa primitives y conserva feedback con movimiento reducido", () => {
   for (const token of ["--motion-duration-control", "--motion-duration-popover", "--motion-duration-drawer", "--motion-ease-drawer"]) assert.match(css, new RegExp(token));
   assert.match(css, /ui-menu-content\[data-state=open\]/);
-  assert.match(css, /export-overlay\[open\] \.export-panel-v4/);
+  assert.match(css, /ui-dialog-drawer\[open\] \.ui-dialog-panel/);
   assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
   assert.doesNotMatch(css, /prefers-reduced-motion:reduce\)\{\*\{[^}]*transition:none/);
+});
+
+test("contraste sobre acento se resuelve con tokens internos compartidos", () => {
+  assert.match(css, /--ui-on-accent:#fff/);
+  assert.match(css, /--ui-on-accent:#18181b/);
+  assert.match(css, /\.ui-checkbox,\.ui-checkbox\[data-state=checked\]\{color:var\(--ui-on-accent\)\}/);
+  assert.match(css, /border-left-color:var\(--ui-accent-separator\)!important/);
 });
 
 test("navegación móvil comunica continuidad y centra la sección activa", () => {

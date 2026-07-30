@@ -5,15 +5,15 @@ import { BookOpen, ChevronDown, Component, HeartPulse, Layers3, PaintBucket, Tra
 import { Catalog } from "./components/Catalog";
 import { BrandMark } from "./components/BrandMark";
 import { HealthView } from "./components/HealthView";
-import { Alert, Badge, Button, Card, Checkbox, Combobox, ExportMenu, HealthIndicator, IconButton, Input, LabHeader, ProjectMenu, RadioGroup, SectionHeading, Select, Switch, Table, Tabs, Textarea } from "./components/ui/LabUI";
-import { ArrowRightIcon, GridIcon, MoonIcon, SlidersIcon, SunIcon } from "./components/ui/Icons";
+import { Alert, Badge, Button, Card, Checkbox, Combobox, Dialog, ExportMenu, HealthIndicator, IconButton, Input, LabHeader, ProjectMenu, RadioGroup, SectionHeading, Select, Switch, Table, Tabs, Textarea } from "./components/ui/LabUI";
+import { ArrowRightIcon, GridIcon, MoonIcon, SunIcon } from "./components/ui/Icons";
 import { analyzeProject, HealthFinding } from "./lib/health";
 import { buildCss, buildDocumentation, buildTokenSubset, downloadText, ExportCategory, projectFilename } from "./lib/exporters";
 import { buildFigmaMcpPackage, FigmaConflictPolicy } from "./lib/figma-mcp";
 import { colorLibraries, colorPresets, paletteFromPreset } from "./lib/color-presets";
 import { allColorReferences, createBlankProject, createInitialProject, DesignSystemProject, fontOptions, generateColorScale, generateTypeLevels, makeManualPalette, makePalette, migrateProject, PlatformId, platformOrder, ratioOptions, relativeLuminance, resolveComponent, resolveLayout, resolveResponsiveScale, resolveSemantic, ScaleGroupKey, scaleLabels, uid } from "./lib/model";
 
-type MainSection = "project" | "colors" | "typography" | "scales" | "semantics" | "components" | "catalog" | "health";
+type MainSection = "colors" | "typography" | "scales" | "semantics" | "components" | "catalog" | "health";
 type Notice = { message: string; tone: "success" | "error" };
 const STORAGE_KEY = "design-system-lab-project-v1";
 const THEME_KEY = "design-system-lab-ui-theme";
@@ -34,9 +34,9 @@ function Starter({ onChoose }: { onChoose: (kind: "validated" | "blank") => void
   return <main className="starter-v4"><section><BrandMark className="starter-mark" size={76} /><h1>Elegí una base para empezar</h1><p>Después vas a definir el nombre y las plataformas del proyecto antes de entrar al laboratorio.</p><div className="starter-options"><Card><Badge tone="success">Recomendado</Badge><h2>Sistema inicial validado</h2><p>Una base completa, contrastada y editable para explorar decisiones reales desde el primer momento.</p><ul><li>Catálogo funcional desde el inicio</li><li>Contrastes y estados esenciales resueltos</li><li>Mobile como base editable</li></ul><Button variant="primary" size="lg" onClick={() => onChoose("validated")}>Continuar con esta base <ArrowRightIcon /></Button></Card><Card><h2>Proyecto en blanco</h2><p>La estructura del laboratorio sin decisiones visuales preasignadas, con una ruta progresiva de configuración.</p><ul><li>Foundations sin asignaciones</li><li>Tokens pendientes, nunca simulados</li><li>Salud sin evaluar hasta tener una base</li></ul><Button size="lg" onClick={() => onChoose("blank")}>Empezar desde cero <ArrowRightIcon /></Button></Card></div></section></main>;
 }
 
-function ProjectView({ project, update }: { project: DesignSystemProject; update: (recipe: (current: DesignSystemProject) => DesignSystemProject) => void }) {
+function ProjectView({ project, update, embedded = false }: { project: DesignSystemProject; update: (recipe: (current: DesignSystemProject) => DesignSystemProject) => void; embedded?: boolean }) {
   const setPlatform = (id: PlatformId, enabled: boolean) => update((current) => ({ ...current, platforms: { ...current.platforms, [id]: { ...current.platforms[id], enabled, proposalPending: enabled && id !== "mobile" } } }));
-  return <div className="view-stack"><SectionHeading title="Proyecto" description="Identidad y plataformas que determinan el alcance del sistema." /><Card><SectionHeading level={2} title="Identidad" description="Estos datos acompañan el archivo editable, la documentación y el thumbnail." /><div className="form-grid project-identity-grid"><Input label="Nombre del proyecto" value={project.meta.name} onChange={(event) => update((current) => ({ ...current, meta: { ...current.meta, name: event.target.value } }))} /><Input label="Iniciales de marca" value={project.meta.brandMark} maxLength={3} help="Hasta tres caracteres." onChange={(event) => update((current) => ({ ...current, meta: { ...current.meta, brandMark: event.target.value } }))} /><Textarea label="Descripción" value={project.meta.description} onChange={(event) => update((current) => ({ ...current, meta: { ...current.meta, description: event.target.value } }))} /></div></Card><Card><SectionHeading level={2} title="Plataformas" description="Mobile es la base. Activá únicamente las variantes que necesite este proyecto." /><div className="platform-cards">{platformOrder.map((id) => <div key={id}><div><b>{project.platforms[id].name}</b><span>{id === "mobile" ? "Base mobile-first" : "Hereda de Mobile hasta crear overrides"}</span></div><Switch checked={project.platforms[id].enabled} disabled={id === "mobile"} onCheckedChange={(checked) => setPlatform(id, checked)} ariaLabel={`${project.platforms[id].enabled ? "Desactivar" : "Activar"} ${project.platforms[id].name}`} /></div>)}</div></Card></div>;
+  return <div className={embedded ? "project-settings-v4" : "view-stack"}>{embedded ? null : <SectionHeading title="Proyecto" description="Identidad y plataformas que determinan el alcance del sistema." />}<Card><SectionHeading level={2} title="Identidad" description="Estos datos acompañan el archivo editable, la documentación y el thumbnail." /><div className="form-grid project-identity-grid"><Input label="Nombre del proyecto" value={project.meta.name} onChange={(event) => update((current) => ({ ...current, meta: { ...current.meta, name: event.target.value } }))} /><Input label="Iniciales de marca" value={project.meta.brandMark} maxLength={3} help="Hasta tres caracteres." onChange={(event) => update((current) => ({ ...current, meta: { ...current.meta, brandMark: event.target.value } }))} /><Textarea label="Descripción" value={project.meta.description} onChange={(event) => update((current) => ({ ...current, meta: { ...current.meta, description: event.target.value } }))} /></div></Card><Card><SectionHeading level={2} title="Plataformas" description="Mobile es la base. Activá únicamente las variantes que necesite este proyecto." /><div className="platform-cards">{platformOrder.map((id) => <div key={id}><div><b>{project.platforms[id].name}</b><span>{id === "mobile" ? "Base mobile-first" : "Hereda de Mobile hasta crear overrides"}</span></div><Switch checked={project.platforms[id].enabled} disabled={id === "mobile"} onCheckedChange={(checked) => setPlatform(id, checked)} ariaLabel={`${project.platforms[id].enabled ? "Desactivar" : "Activar"} ${project.platforms[id].name}`} /></div>)}</div></Card></div>;
 }
 
 function paletteDependencies(project: DesignSystemProject, paletteName: string) {
@@ -192,23 +192,6 @@ function ExportPanel({ project, open, onClose, notice }: { project: DesignSystem
   const [figmaTarget, setFigmaTarget] = useState("");
   const [figmaConflictPolicy, setFigmaConflictPolicy] = useState<FigmaConflictPolicy>("review");
   const [figmaDryRun, setFigmaDryRun] = useState(true);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!open || !dialog) return;
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    if (!dialog.open) dialog.showModal();
-    queueMicrotask(() => dialog.querySelector<HTMLElement>("[data-export-close]")?.focus());
-    return () => {
-      if (dialog.open) dialog.close();
-      document.body.style.overflow = previousOverflow;
-      returnFocusRef.current?.focus();
-    };
-  }, [open]);
-  if (!open) return null;
   const snapshot = () => { const clone = structuredClone(project); if (theme !== "all") clone.themes = clone.themes.filter((item) => item.id === theme); if (platform !== "all") platformOrder.forEach((id) => { clone.platforms[id].enabled = id === platform; }); return clone; };
   const exportTokens = () => {
     const scoped = snapshot();
@@ -221,18 +204,19 @@ function ExportPanel({ project, open, onClose, notice }: { project: DesignSystem
     downloadText(projectFilename(project, format === "json" ? "-tokens.json" : "-tokens.css"), format === "json" ? JSON.stringify(buildTokenSubset(scoped, categories), null, 2) : buildCss(scoped, categories), format === "json" ? "application/json" : "text/css");
     notice("Exportación generada");
   };
-  return <dialog ref={dialogRef} className="export-overlay" aria-labelledby="export-title" aria-describedby="export-description" onCancel={(event) => { event.preventDefault(); onClose(); }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className="export-panel-v4"><header className="ui-section-heading level-1"><div><h1 id="export-title">Configurar exportación</h1><p id="export-description">Elegí contenido, destino y alcance. Podés cerrar y volver para crear exportaciones secuenciales.</p></div><IconButton label="Cerrar" data-export-close onClick={onClose}><X /></IconButton></header><Card><SectionHeading level={2} title="Contenido" /> <div className="export-checks">{exportOptions.map((option) => <Checkbox key={option.value} checked={categories.includes(option.value)} onCheckedChange={(checked) => setCategories((current) => checked ? [...current, option.value] : current.filter((item) => item !== option.value))} label={option.label} />)}</div></Card><Card><SectionHeading level={2} title="Destino y alcance" /><RadioGroup value={format} onValueChange={setFormat} options={[{ value: "json", label: "JSON para Figma y desarrollo" }, { value: "css", label: "Variables CSS" }, { value: "figma-mcp", label: "Paquete para GPT + Figma MCP", meta: "Manifiesto, validación y plan de ejecución en un archivo" }]} />{format === "figma-mcp" ? <div className="figma-mcp-config"><Alert tone="info" title="Ejecución asistida, no automática">El paquete obliga al agente a inspeccionar el archivo, mostrar un dry-run y confirmar conflictos antes de escribir. La capacidad de escritura depende del cliente MCP y de tus permisos en Figma.</Alert><Input label="Archivo Figma Design (opcional)" value={figmaTarget} onChange={(event) => setFigmaTarget(event.target.value)} placeholder="https://www.figma.com/design/…" help="Podés dejarlo vacío y confirmarlo en el chat antes de ejecutar." /><Select label="Si una variable ya existe" value={figmaConflictPolicy} onValueChange={(value) => setFigmaConflictPolicy(value as FigmaConflictPolicy)} options={[{ value: "review", label: "Revisar antes de cambiar", meta: "Recomendado" }, { value: "update-by-name", label: "Actualizar por nombre" }, { value: "skip-existing", label: "Omitir existentes" }]} /><Checkbox checked={figmaDryRun} onCheckedChange={setFigmaDryRun} label="Solicitar simulación y resumen antes de escribir" /></div> : <div className="form-grid"><Select label="Modo" value={theme} onValueChange={setTheme} options={[{ value: "all", label: "Todos los modos" }, ...project.themes.map((item) => ({ value: item.id, label: item.name }))]} /><Select label="Plataforma" value={platform} onValueChange={setPlatform} options={[{ value: "all", label: "Todas las plataformas" }, ...platformOrder.filter((id) => project.platforms[id].enabled).map((id) => ({ value: id, label: project.platforms[id].name }))]} /></div>}<Button variant="primary" size="lg" disabled={!categories.length} onClick={exportTokens}>{format === "figma-mcp" ? "Descargar paquete MCP" : "Exportar selección"}</Button></Card><Card><SectionHeading level={2} title="Otras salidas" description="El archivo editable y el sitio de documentación son salidas separadas." /><div className="export-actions-v4"><Button onClick={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))}>Descargar proyecto editable</Button><Button onClick={() => downloadText(projectFilename(project, "-docs.html"), buildDocumentation(project), "text/html")}>Descargar documentación HTML</Button></div></Card></div></dialog>;
+  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }} title="Configurar exportación" description="Elegí contenido, destino y alcance. Podés cerrar y volver para crear exportaciones secuenciales." variant="drawer" className="export-panel-v4"><Card><SectionHeading level={2} title="Contenido" /><div className="export-checks">{exportOptions.map((option) => <Checkbox key={option.value} checked={categories.includes(option.value)} onCheckedChange={(checked) => setCategories((current) => checked ? [...current, option.value] : current.filter((item) => item !== option.value))} label={option.label} />)}</div></Card><Card><SectionHeading level={2} title="Destino y alcance" /><RadioGroup value={format} onValueChange={setFormat} options={[{ value: "json", label: "JSON para Figma y desarrollo" }, { value: "css", label: "Variables CSS" }, { value: "figma-mcp", label: "Paquete para GPT + Figma MCP", meta: "Manifiesto, validación y plan de ejecución en un archivo" }]} /><div className="export-format-stack">{format === "figma-mcp" ? <div className="figma-mcp-config"><Alert tone="info" title="Ejecución asistida, no automática">El paquete obliga al agente a inspeccionar el archivo, mostrar un dry-run y confirmar conflictos antes de escribir. La capacidad de escritura depende del cliente MCP y de tus permisos en Figma.</Alert><Input label="Archivo Figma Design (opcional)" value={figmaTarget} onChange={(event) => setFigmaTarget(event.target.value)} placeholder="https://www.figma.com/design/…" help="Podés dejarlo vacío y confirmarlo en el chat antes de ejecutar." /><Select label="Si una variable ya existe" value={figmaConflictPolicy} onValueChange={(value) => setFigmaConflictPolicy(value as FigmaConflictPolicy)} options={[{ value: "review", label: "Revisar antes de cambiar", meta: "Recomendado" }, { value: "update-by-name", label: "Actualizar por nombre" }, { value: "skip-existing", label: "Omitir existentes" }]} /><Checkbox checked={figmaDryRun} onCheckedChange={setFigmaDryRun} label="Solicitar simulación y resumen antes de escribir" /></div> : <div className="form-grid"><Select label="Modo" value={theme} onValueChange={setTheme} options={[{ value: "all", label: "Todos los modos" }, ...project.themes.map((item) => ({ value: item.id, label: item.name }))]} /><Select label="Plataforma" value={platform} onValueChange={setPlatform} options={[{ value: "all", label: "Todas las plataformas" }, ...platformOrder.filter((id) => project.platforms[id].enabled).map((id) => ({ value: id, label: project.platforms[id].name }))]} /></div>}<Button variant="primary" size="lg" disabled={!categories.length} onClick={exportTokens}>{format === "figma-mcp" ? "Descargar paquete MCP" : "Exportar selección"}</Button></div></Card><Card><SectionHeading level={2} title="Otras salidas" description="El archivo editable y el sitio de documentación son salidas separadas." /><div className="export-actions-v4"><Button onClick={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))}>Descargar proyecto editable</Button><Button onClick={() => downloadText(projectFilename(project, "-docs.html"), buildDocumentation(project), "text/html")}>Descargar documentación HTML</Button></div></Card></Dialog>;
 }
 
 export default function Home() {
   const [project, setProject] = useState<DesignSystemProject>(() => createInitialProject());
   const [active, setActive] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
-  const [section, setSection] = useState<MainSection>("project");
+  const [section, setSection] = useState<MainSection>("colors");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [hydrated, setHydrated] = useState(false);
   const [notice, setNotice] = useState<Notice>();
   const [exportOpen, setExportOpen] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState("");
   const [scaleTarget, setScaleTarget] = useState<PlatformId>();
   const importRef = useRef<HTMLInputElement>(null);
@@ -247,7 +231,7 @@ export default function Home() {
   useEffect(() => {
     if (!active) return;
     window.scrollTo({ top: 0, behavior: "auto" });
-    const sectionLabel: Record<MainSection, string> = { project: "Proyecto", colors: "Color", typography: "Tipografía", scales: "Escalas y layout", semantics: "Tokens semánticos", components: "Tokens de componente", catalog: "Catálogo", health: "Salud del sistema" };
+    const sectionLabel: Record<MainSection, string> = { colors: "Color", typography: "Tipografía", scales: "Escalas y layout", semantics: "Tokens semánticos", components: "Tokens de componente", catalog: "Catálogo", health: "Salud del sistema" };
     document.title = `${sectionLabel[section]} · ${project.meta.name} · Laboratorio de Sistemas de Diseño`;
     if (!navigationRequestedRef.current) return;
     navigationRequestedRef.current = false;
@@ -304,7 +288,6 @@ export default function Home() {
   if (!active && setupOpen) return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}><main className="setup-v4"><header><div className="setup-header-start"><BrandMark size={38} /><button type="button" onClick={() => setSetupOpen(false)}>Volver</button></div><span>Paso 2 de 2</span></header><ProjectView project={project} update={update} /><div className="setup-actions"><Button size="lg" onClick={() => setSetupOpen(false)}>Cambiar punto de partida</Button><Button variant="primary" size="lg" onClick={() => { navigationRequestedRef.current = true; setActive(true); setSetupOpen(false); setSection("colors"); }}>Entrar al laboratorio <ArrowRightIcon /></Button></div></main></div>;
   const healthStatus = health.status === "not-evaluated" ? "pending" : health.counts.blocking || health.counts.warning ? "attention" : "ready";
   const renderMain = () => {
-    if (section === "project") return <ProjectView project={project} update={update} />;
     if (section === "colors") return <ColorView project={project} update={update} />;
     if (section === "typography") return <TypographyView project={project} update={update} />;
     if (section === "scales") return <ScalesView key={`scales-${scaleTarget || "default"}`} project={project} update={update} initialPlatform={scaleTarget} />;
@@ -314,7 +297,6 @@ export default function Home() {
     return <HealthView project={project} onOpenTokens={openTokens} onOpenCatalog={() => navigateTo("catalog")} onOpenFinding={openFinding} />;
   };
   const navigation: { id: MainSection; label: string; icon: React.ReactNode; group?: string }[] = [
-    { id: "project", label: "Proyecto", icon: <SlidersIcon /> },
     { id: "colors", label: "Color", icon: <PaintBucket />, group: "Foundations" },
     { id: "typography", label: "Tipografía", icon: <Type /> },
     { id: "scales", label: "Escalas y layout", icon: <GridIcon /> },
@@ -327,6 +309,7 @@ export default function Home() {
     <a className="skip-link-v4" href="#lab-main">Saltar al contenido</a>
     <LabHeader
       projectName={project.meta.name}
+      onOpenProject={() => setProjectOpen(true)}
       health={<HealthIndicator score={health.score} status={healthStatus} summary={health.summary} onClick={() => navigateTo("health")} />}
       projectMenu={<ProjectMenu onImport={() => importRef.current?.click()} onDownload={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))} onDuplicate={() => { setProject((current) => ({ ...structuredClone(current), id: uid(), meta: { ...current.meta, name: `${current.meta.name} copia` } })); flash("Proyecto duplicado"); }} />}
       themeAction={<IconButton label={theme === "light" ? "Usar tema oscuro del Laboratorio" : "Usar tema claro del Laboratorio"} onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}>{theme === "light" ? <MoonIcon /> : <SunIcon />}</IconButton>}
@@ -334,6 +317,7 @@ export default function Home() {
     />
     <input ref={importRef} hidden type="file" accept=".json,.dslab.json" onChange={importProject} />
     <div className="workspace-v4"><aside ref={navigationRef} className="sidebar-v4"><nav aria-label="Navegación principal">{navigation.map((item) => <div key={item.id}>{item.group ? <span className="sidebar-group">{item.group}</span> : null}<button className={section === item.id ? "active" : ""} aria-current={section === item.id ? "page" : undefined} onClick={() => { if (item.id === "scales") setScaleTarget(undefined); navigateTo(item.id); }}>{item.icon}<span>{item.label}</span></button></div>)}</nav></aside><main ref={mainRef} id="lab-main" className="main-v4">{renderMain()}</main></div>
+    <Dialog open={projectOpen} onOpenChange={setProjectOpen} title="Configuración del proyecto" description="Editá la identidad y el alcance de plataformas sin salir de tu tarea actual."><ProjectView project={project} update={update} embedded /></Dialog>
     <ExportPanel project={project} open={exportOpen} onClose={() => setExportOpen(false)} notice={flash} />
     {notice?.tone === "success" ? <div className="toast-v4" role="status" aria-live="polite">{notice.message}</div> : null}
     {notice?.tone === "error" ? <div className="import-error-v4" role="alert" aria-live="assertive"><div><b>No se pudo importar el proyecto</b><p>{notice.message}</p></div><Button onClick={() => importRef.current?.click()}>Elegir otro archivo</Button><IconButton label="Cerrar mensaje" onClick={() => setNotice(undefined)}><X /></IconButton></div> : null}

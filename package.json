@@ -11,7 +11,7 @@
     "build:pages": "node scripts/build-pages.mjs",
     "build:sites": "vinext build",
     "storybook": "storybook dev -p 6006",
-    "build:storybook": "storybook build",
+    "build:storybook": "node scripts/build-storybook.mjs",
     "generate:colors": "node scripts/generate-color-library.mjs",
     "start": "next start",
     "test": "pnpm run build:pages && node --test tests/*.test.mjs",
