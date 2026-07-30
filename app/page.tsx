@@ -284,6 +284,7 @@ export default function Home() {
   useEffect(() => {
     const id = "font-family-catalog";
     document.getElementById(id)?.remove();
+    if (!active || section !== "typography") return;
     const families = fontOptions.filter((font) => font.source === "google").map((font) => `family=${encodeURIComponent(font.family).replaceAll("%20", "+")}:wght@${font.weights.join(";")}`).join("&");
     const link = document.createElement("link");
     link.id = id;
@@ -291,7 +292,7 @@ export default function Home() {
     link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
     document.head.appendChild(link);
     return () => link.remove();
-  }, []);
+  }, [active, section]);
   useEffect(() => { const id = "project-google-font"; document.getElementById(id)?.remove(); const googleFamilies = projectTypography.families.filter((family) => family.source === "google"); if (!googleFamilies.length) return; const link = document.createElement("link"); link.id = id; link.rel = "stylesheet"; link.href = `https://fonts.googleapis.com/css2?${googleFamilies.map((family) => `family=${encodeURIComponent(family.family).replaceAll("%20", "+")}:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400`).join("&")}&display=swap`; document.head.appendChild(link); return () => link.remove(); }, [projectTypography.families]);
   const health = useMemo(() => analyzeProject(project), [project]);
   const flash = (message: string) => {
