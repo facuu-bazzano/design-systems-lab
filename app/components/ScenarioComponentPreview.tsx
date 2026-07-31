@@ -233,7 +233,7 @@ function SnapshotProjectComponent({ entry, state }: { entry: CatalogEntry; state
   if (entry.id === "loading") return <LoaderCircle className={`project-spinner ${className}`} aria-label="Cargando" />;
   if (entry.id === "progress") return <div className={`project-progress ${className}`}><span style={{ width: state.validation === "success" ? "100%" : "64%" }} /></div>;
   if (entry.id === "skeleton") return <div className={`project-skeleton ${className} ${state.motion === "reduced" ? "reduce-motion" : ""}`}><i /><i /><i /></div>;
-  if (entry.id === "tooltip") return <div className={`${className} snapshot-tooltip`}><button type="button">Ayuda</button>{open ? <span role="tooltip">Información contextual</span> : null}</div>;
+  if (entry.id === "tooltip") return <div className={`${className} snapshot-tooltip project-tooltip-stage`}><button type="button" className="project-tooltip-demo">Ayuda</button>{open ? <span role="tooltip" className="project-tooltip-content snapshot-tooltip-content">Información contextual</span> : null}</div>;
   if (entry.id === "avatar") return state.content === "group" ? <div className={`project-avatar-group ${className}`}><span>AL</span><span>MG</span><span>+2</span></div> : <div className={`project-avatar ${className}`}>{state.content === "image" ? <CircleUserRound /> : <span>AL</span>}</div>;
   if (entry.id === "card") return <article className={`project-card ${className}`}><b>Cobertura</b><p>Roles esenciales conectados.</p><strong>100%</strong></article>;
   if (entry.id === "carousel") return <div className={`project-carousel ${className}`}><button type="button" disabled={disabled}><ChevronLeft /></button><div>01</div><div>02</div><button type="button" disabled={disabled}><ChevronRight /></button></div>;

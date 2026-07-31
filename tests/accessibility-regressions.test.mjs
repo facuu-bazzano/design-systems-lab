@@ -26,6 +26,10 @@ function contrastRatio(a, b) {
 
 test("exportación usa un diálogo modal con nombre, Escape y restauración de foco", () => {
   assert.match(page, /<Dialog open=\{open\}/);
+  assert.doesNotMatch(page, /title="Configurar exportación"[^>]*variant="drawer"/);
+  assert.match(page, /className="export-panel-v4"><div className="export-dialog-grid"/);
+  assert.match(page, /Marcá cuáles incluir en esta exportación\. Esto no cambia la configuración del proyecto\./);
+  assert.match(page, /Son opcionales para esta salida y permanecen desactivadas en el proyecto\./);
   assert.match(ui, /<dialog ref=\{dialogRef\}/);
   assert.match(ui, /aria-labelledby=\{titleId\}/);
   assert.match(ui, /dialog\.showModal\(\)/);

@@ -488,3 +488,52 @@
 
 @media(max-width:640px){.catalog-state-matrix{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.project-button,.project-icon-button,.project-modal-demo,.project-select,.project-field,.project-checkbox,.project-radio,.project-switch,.project-tabs [role=tab],.project-calendar button,.project-pagination button,.project-list button,.project-card,.project-accordion button,.project-breadcrumbs a,.scenario-carousel-live>button{transition-duration:1ms}.project-renderer-playground .project-button:not(:disabled):active{transform:none}}
+
+/* Canonical project-preview interaction contract. Playground and matrix intentionally share these rules. */
+.project-switch{box-sizing:border-box;width:44px;height:24px;display:flex;align-items:center;padding:2px;border:1px solid var(--ds-border-strong);border-radius:999px;background:var(--ds-disabled-surface)}
+.project-switch :is(span,i){box-sizing:border-box;width:18px;height:18px;flex:0 0 18px;display:block;border-radius:50%;background:var(--ds-surface-raised);box-shadow:0 1px 3px #0003;transform:translateX(0)}
+.project-switch[data-state=checked],.snapshot-control .state-checked.project-switch,.snapshot-control .state-selected.project-switch{border-color:var(--ds-selected-border);background:var(--ds-selected-border)}
+.project-switch[data-state=checked] span,.snapshot-control .state-checked.project-switch i,.snapshot-control .state-selected.project-switch i{transform:translateX(20px)}
+.snapshot-control .project-switch{display:flex;align-items:center}
+
+.scenario-dropdown>.project-select[aria-expanded=true]{border-color:var(--ds-input-focus,var(--ds-focus));box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-focus) 25%,transparent)}
+
+.project-renderer-playground .project-tabs [role=tab]:not(:disabled):not([data-state=active]):hover{border-color:transparent;background:transparent;color:var(--ds-text);box-shadow:inset 0 -2px color-mix(in srgb,var(--ds-text-muted) 62%,transparent)}
+.project-tabs.project-snapshot.state-hover [role=tab]:not(:disabled){border-color:transparent!important;background:transparent!important;box-shadow:none!important}
+.project-tabs.project-snapshot.state-hover [role=tab]:not(:disabled):nth-child(2){color:var(--ds-text);box-shadow:inset 0 -2px color-mix(in srgb,var(--ds-text-muted) 62%,transparent)!important}
+.project-tabs [role=tab]:disabled,.project-tabs.project-snapshot.state-disabled [role=tab]{border-color:transparent!important;background:transparent!important;color:var(--ds-disabled-content);box-shadow:none!important;cursor:not-allowed}
+
+.project-renderer-playground .project-list button:hover{border-color:var(--ds-border);background:var(--ds-selected-surface);box-shadow:none}
+.project-list.project-snapshot.state-hover button:first-child{border-color:var(--ds-border);background:var(--ds-selected-surface);box-shadow:none}
+.project-table tbody tr.selected,.project-table.project-snapshot.state-selected tbody tr.selected{font-weight:650}
+
+.snapshot-tooltip{min-height:54px;place-items:center}
+.snapshot-tooltip-content{position:absolute;z-index:4;bottom:calc(50% + 22px);left:50%;width:max-content;max-width:220px;transform:translateX(-50%)}
+
+.project-renderer-playground .project-accordion:hover{border-color:var(--ds-border-strong)}
+.project-renderer-playground .project-accordion button:hover{border-color:transparent;background:transparent}
+.project-renderer-playground .project-accordion button:focus-visible,.project-accordion.project-snapshot.state-focus button{outline:0;background:transparent;box-shadow:inset 0 0 0 2px var(--ds-focus)}
+.project-accordion.project-snapshot.state-hover{border-color:var(--ds-border-strong);background:var(--ds-surface-raised)}
+.project-accordion.project-snapshot.state-hover button{border-color:transparent;background:transparent}
+
+.catalog-spec>.scenario-toast-live{top:92px;right:24px;bottom:auto}
+.component-token-group-trigger{border-radius:10px}
+.component-token-group-head>div,.variant-actions{display:flex;align-items:center;gap:8px}
+.component-token-group-head>div :is(.ui-button,.ui-icon-button),.variant-actions :is(.ui-button,.ui-icon-button){height:42px;min-height:42px}
+.scenario-module{min-height:96px;gap:var(--ds-space-xs,8px);padding:var(--ds-space-sm,12px)}
+
+.ui-dialog-modal .ui-dialog-panel.export-panel-v4{width:min(1120px,100%)}
+.export-dialog-grid{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);align-items:start;gap:18px}
+.export-dialog-grid>.ui-alert,.export-dialog-grid>.export-secondary-card{grid-column:1/-1}
+.export-platform-scope>p{margin:0 0 4px;color:var(--ui-muted);font-size:12px;line-height:1.45}
+@media(max-width:800px){.export-dialog-grid{grid-template-columns:1fr}.catalog-spec>.scenario-toast-live{top:82px;right:16px}.scenario-module{padding:var(--ds-space-sm,12px)}}
+
+.foundation-type-sample>.type-sample-main{grid-column:1;grid-row:auto;display:grid;align-content:start;gap:var(--ds-space-lg,24px);padding:0;background:transparent}
+.foundation-type-sample>.type-sample-metric{grid-column:2;grid-row:1;align-self:stretch;display:grid;padding:0;background:transparent}
+.type-sample-metric>div{display:grid;align-content:center;gap:var(--ds-space-xs,8px);padding:var(--ds-space-lg,24px);border-radius:var(--ds-card-radius);background:var(--ds-selected-surface)}
+.type-role-sample{position:relative;min-width:0;border-radius:var(--ds-control-radius);outline:0}
+.type-role-sample:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-focus) 35%,transparent)}
+.type-role-tooltip{position:absolute;z-index:6;left:12px;bottom:calc(100% + 7px);max-width:min(320px,calc(100vw - 48px));padding:7px 9px;border-radius:6px;background:var(--ds-text);color:var(--ds-surface);box-shadow:var(--ds-card-shadow);font:600 12px/1.35 var(--ds-font-body);opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity 120ms ease-out,transform 120ms ease-out}
+.type-role-sample:is(:hover,:focus-within)>.type-role-tooltip{opacity:1;transform:translateY(0)}
+.type-sample-display h2{margin:0}.type-sample-body{display:grid;gap:var(--ds-space-sm,12px)}.type-sample-body p{max-width:68ch;margin:0}.type-sample-label label{display:grid;gap:var(--ds-space-xs,8px);font:var(--ds-type-label-weight,600) var(--ds-type-label-size,14px)/var(--ds-type-label-line,1.4) var(--ds-font-label)}
+@media(max-width:760px){.foundation-type-sample{grid-template-columns:1fr}.foundation-type-sample>.type-sample-main,.foundation-type-sample>.type-sample-metric{grid-column:1}.foundation-type-sample>.type-sample-metric{grid-row:auto}}

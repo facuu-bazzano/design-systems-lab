@@ -161,10 +161,30 @@ test("v5 migration is idempotent and preserves blank and custom projects", () =>
 
 test("variant inheritance resolves slots and rejects cycles", () => {
   const project = model.createInitialProject();
-  const secondary = project.componentVariants.find((variant) => variant.id === "variant-button-secondary");
+  const secondary = { id: "variant-button-secondary", key: "secondary", componentId: "component-button", name: "Secondary", description: "Variante a demanda", inheritsFrom: "variant-button-primary", visibleInCatalog: true };
+  project.componentVariants.push(secondary);
   assert.equal(secondary.inheritsFrom, "variant-button-primary");
   assert.ok(model.componentTokensForVariant(project, secondary.id).some((token) => token.property === "background"));
   assert.equal(model.variantInheritanceWouldCycle(project, "variant-button-primary", secondary.id), true);
+});
+
+test("validated starter does not preload empty component variants", () => {
+  const project = model.createInitialProject();
+  const buttonVariants = project.componentVariants.filter((variant) => variant.componentId === "component-button");
+  assert.deepEqual(buttonVariants.map((variant) => variant.key).sort(), ["destructive", "primary"]);
+  assert.ok(buttonVariants.every((variant) => project.componentTokens.some((token) => token.variantId === variant.id)));
+});
+
+test("migration removes only the old empty starter button variants", () => {
+  const legacy = model.createInitialProject();
+  legacy.componentVariants.push(
+    { id: "variant-button-secondary", key: "secondary", componentId: "component-button", name: "Secondary", description: "Starter vacío", inheritsFrom: "variant-button-primary", visibleInCatalog: true },
+    { id: "variant-button-custom", key: "custom", componentId: "component-button", name: "Custom", description: "Con contenido", inheritsFrom: "variant-button-primary", visibleInCatalog: true },
+  );
+  legacy.componentTokens.push({ ...legacy.componentTokens[0], id: "custom-token", key: "button.custom.default.background", variantId: "variant-button-custom" });
+  const migrated = model.migrateProject(legacy);
+  assert.equal(migrated.componentVariants.some((variant) => variant.id === "variant-button-secondary"), false);
+  assert.equal(migrated.componentVariants.some((variant) => variant.id === "variant-button-custom"), true);
 });
 
 test("component-only exports include required dependencies", () => {

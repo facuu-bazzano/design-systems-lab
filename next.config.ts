@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   basePath: pagesBasePath,
   trailingSlash: true,
   images: { unoptimized: true },
+  htmlLimitedBots: /.*/,
 };
 
 export default nextConfig;

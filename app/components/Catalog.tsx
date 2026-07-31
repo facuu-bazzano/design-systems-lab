@@ -6,7 +6,7 @@ import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { ChevronLeft, ChevronRight, CircleUserRound, LoaderCircle, MoreHorizontal, Search } from "lucide-react";
 import { catalogCategories, catalogRegistry, CatalogEntry } from "../lib/catalog-registry";
-import { componentTokenPath, DesignSystemProject, PlatformId, platformOrder, resolveComponent, resolveSemantic, semanticById } from "../lib/model";
+import { componentTokenPath, DesignSystemProject, PlatformId, platformOrder, resolveComponent, resolveSemantic, semanticById, visibleRendererVariants } from "../lib/model";
 import { resolveProjectTokens, resolveVariantCssVariables } from "../lib/token-resolver";
 import { ProjectAccordionPreview, ProjectAlertPreview, ProjectCheckboxPreview, ProjectIconButtonPreview, ProjectSelectPreview, ProjectTooltipPreview } from "./ProjectPreviews";
 import { ProjectComponentRenderer } from "./ScenarioComponentPreview";
@@ -105,8 +105,7 @@ function TokenInspector({ entry, project, theme, platform, onOpenTokens }: { ent
 function ComponentSpec({ entry, project, theme, platform, portalStyle, onOpenTokens }: { entry: CatalogEntry; project: DesignSystemProject; theme: string; platform: PlatformId; portalStyle?: CSSProperties; onOpenTokens: Props["onOpenTokens"] }) {
   const definition = project.components.find((component) => component.rendererKey === entry.id || component.key === entry.id);
   const componentVariants = definition ? project.componentVariants.filter((variant) => variant.componentId === definition.id) : [];
-  const structuralVariantKeys = new Set(["default", "track", "thumb", "focus", "item", "radius", "container", "header", "row", "divider", "menu"]);
-  const variants = componentVariants.filter((variant) => variant.visibleInCatalog && (entry.id === "button" || !structuralVariantKeys.has(variant.key)));
+  const variants = definition ? visibleRendererVariants(project, definition) : [];
   const fallbackVariant = componentVariants.find((variant) => variant.key === "default") || componentVariants[0];
   const [variantId, setVariantId] = useState(variants[0]?.id || fallbackVariant?.id || "");
   const activeVariantId = componentVariants.some((variant) => variant.id === variantId) ? variantId : variants[0]?.id || fallbackVariant?.id || "";

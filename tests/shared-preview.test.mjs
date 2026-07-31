@@ -139,6 +139,7 @@ test("catalog states target the rendered control and variants propagate to scena
   const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
   const scenarios = await readFile(new URL("app/components/ScenarioExplorer.tsx", projectRoot), "utf8");
   const previews = await readFile(new URL("app/components/ScenarioComponentPreview.tsx", projectRoot), "utf8");
+  const model = await readFile(new URL("app/lib/model.ts", projectRoot), "utf8");
   const css = await readFile(new URL("app/globals.css", projectRoot), "utf8");
 
   assert.match(previews, /mode === "snapshot"/);
@@ -146,7 +147,9 @@ test("catalog states target the rendered control and variants propagate to scena
   assert.match(previews, /closest\("\.scenario-product-shell, \.catalog-spec"\)/);
   assert.match(previews, /data-component-id=\{entry\.id\}/);
   assert.match(catalog, /item\.key === name \|\| componentTokenPath/);
-  assert.match(catalog, /structuralVariantKeys/);
+  assert.match(catalog, /visibleRendererVariants/);
+  assert.match(scenarios, /visibleRendererVariants/);
+  assert.match(model, /structuralVariantKeys/);
   assert.match(scenarios, /resolveVariantCssVariables/);
   assert.match(scenarios, /Variante de|label="Variante"/);
   assert.match(css, /\.project-snapshot\.state-hover :is\(\.project-button/);
@@ -156,4 +159,6 @@ test("catalog states target the rendered control and variants propagate to scena
   assert.match(css, /\.project-renderer-playground :is\(\.project-field,\.project-select\):hover/);
   assert.match(css, /\.project-renderer-playground :is\(\.project-checkbox,\.project-radio,\.project-switch\):hover/);
   assert.match(css, /\.catalog-token-rows>div\.pending\{[^}]*color-mix/);
+  assert.match(css, /\.project-tabs\.project-snapshot\.state-hover \[role=tab\]:not\(:disabled\)\{[^}]*background:transparent!important;[^}]*box-shadow:none!important/);
+  assert.match(css, /\.project-tabs\.project-snapshot\.state-disabled \[role=tab\]\{[^}]*border-color:transparent!important;[^}]*box-shadow:none!important/);
 });

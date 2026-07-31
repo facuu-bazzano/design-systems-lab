@@ -8,7 +8,7 @@ export type FontSource = "system" | "google" | "custom";
 export type TypographyFamily = { id: string; family: string; source: FontSource; availableWeights: number[]; styles: string[] };
 export type TypeLevel = { id: string; name: string; familyId: string; size: number; weight: number; lineHeight: number; tracking: number };
 export type TypographyFoundation = { families: TypographyFamily[]; primaryFamilyId: string; base: { size: number; weight: number; lineHeight: number; tracking: number }; ratioName: string; ratio: number; levels: TypeLevel[] };
-export type SemanticToken = { id: string; name: string; category: string; defaultRef: string; themeRefs: Record<string, string>; platformRefs: Partial<Record<PlatformId, string>>; description: string };
+export type SemanticToken = { id: string; name: string; category: string; defaultRef: string; themeRefs: Record<string, string>; platformRefs: Partial<Record<PlatformId, string>>; description: string; source?: "system" | "custom" };
 export type TokenValueType = "color" | "dimension" | "number" | "fontFamily" | "fontWeight" | "shadow" | "opacity" | "duration" | "easing" | "string" | "boolean";
 export type ProjectComponentDefinition = { id: string; key: string; name: string; description: string; source: "catalog" | "custom"; rendererKey?: string };
 export type ComponentVariant = { id: string; key: string; componentId: string; name: string; description: string; inheritsFrom?: string; visibleInCatalog: boolean };
@@ -66,6 +66,11 @@ function inferValueType(reference: string, property = ""): TokenValueType {
 
 export function componentById(project: DesignSystemProject, id: string) { return project.components.find((item) => item.id === id || item.key === id); }
 export function variantById(project: DesignSystemProject, id: string) { return project.componentVariants.find((item) => item.id === id); }
+const structuralVariantKeys = new Set(["default", "track", "thumb", "focus", "item", "radius", "container", "header", "row", "divider", "menu"]);
+export function visibleRendererVariants(project: DesignSystemProject, component: ProjectComponentDefinition) {
+  const variants = project.componentVariants.filter((variant) => variant.componentId === component.id && variant.visibleInCatalog);
+  return variants.filter((variant) => component.rendererKey === "button" || !structuralVariantKeys.has(variant.key));
+}
 export function componentTokenPath(project: DesignSystemProject, token: ComponentToken) {
   const component = componentById(project, token.componentId);
   const variant = variantById(project, token.variantId);
@@ -134,7 +139,7 @@ export function typographyLevelForRole(typography: TypographyFoundation, role: "
 }
 
 export const requiredSemanticIds = ["surface-default", "surface-raised", "surface-overlay", "text-primary", "text-muted", "text-on-action", "border-subtle", "border-strong", "action-primary", "action-hover", "action-pressed", "focus-ring", "feedback-success", "feedback-warning", "feedback-destructive", "disabled-surface", "disabled-content", "selected-surface", "selected-border"];
-const semantic = (id: string, name: string, category: string, defaultRef: string, description: string, darkRef?: string): SemanticToken => ({ id, name, category, defaultRef, description, themeRefs: darkRef ? { dark: darkRef } : {}, platformRefs: {} });
+const semantic = (id: string, name: string, category: string, defaultRef: string, description: string, darkRef?: string): SemanticToken => ({ id, name, category, defaultRef, description, themeRefs: darkRef ? { dark: darkRef } : {}, platformRefs: {}, source: "system" });
 export const defaultSemanticTokens = (): SemanticToken[] => [
   semantic("surface-default", "surface.default", "Superficie", "Slate.50", "Lienzo principal", "Slate.900"), semantic("surface-raised", "surface.raised", "Superficie", "Slate.50", "Contenedores elevados", "Slate.800"), semantic("surface-overlay", "surface.overlay", "Superficie", "Slate.900@72", "Overlays con alpha incorporado", "Slate.900@76"),
   semantic("text-primary", "text.primary", "Texto", "Slate.900", "Texto principal", "Slate.50"), semantic("text-muted", "text.muted", "Texto", "Slate.600", "Texto secundario", "Slate.300"), semantic("text-on-action", "text.on-action", "Texto", "Slate.50", "Contenido sobre acciones", "Slate.50"),
@@ -224,12 +229,10 @@ export const defaultComponentTokens = (): ComponentToken[] => [
 export function defaultComponentVariants(definitions = defaultComponentDefinitions(), tokens = defaultComponentTokens()): ComponentVariant[] {
   return definitions.flatMap((component) => {
     const ids = [...new Set(tokens.filter((token) => token.componentId === component.id).map((token) => token.variantId))];
-    const variantIds = component.key === "button"
-      ? ["variant-button-primary", "variant-button-secondary", "variant-button-tertiary", "variant-button-destructive", "variant-button-custom"]
-      : ids.length ? ids : [`variant-${component.key}-default`];
+    const variantIds = ids.length ? ids : [`variant-${component.key}-default`];
     return [...new Set(variantIds)].map((id) => {
       const key = id.replace(`variant-${component.key}-`, "") || "default";
-      return { id, key, componentId: component.id, name: titleCase(key), description: `${component.name} · ${titleCase(key)}`, inheritsFrom: component.key === "button" && !["primary", "destructive"].includes(key) ? "variant-button-primary" : undefined, visibleInCatalog: true };
+      return { id, key, componentId: component.id, name: titleCase(key), description: `${component.name} · ${titleCase(key)}`, visibleInCatalog: true };
     });
   });
 }
@@ -359,7 +362,8 @@ export function migrateProject(input: unknown): DesignSystemProject {
     const parsed = parseLegacyComponentPath(key, component.key);
     return { id: raw.id || uid(), key, name: raw.description || titleCase(parsed.property), componentId: component.id, variantId: parsed.variantId, state: parsed.state, property: parsed.property, valueType: inferValueType(raw.reference || "", parsed.property), reference: raw.reference || "", platformRefs: raw.platformRefs || {}, description: raw.description || "Token migrado" };
   });
-  const suppliedVariants = candidate.componentVariants?.map((item) => ({ ...item, id: item.id || `variant-${componentKey(item.componentId)}-${componentKey(item.key || item.name)}`, key: componentKey(item.key || item.name), visibleInCatalog: item.visibleInCatalog !== false })) || [];
+  const obsoleteStarterVariantIds = new Set(["variant-button-secondary", "variant-button-tertiary", "variant-button-custom"]);
+  const suppliedVariants = candidate.componentVariants?.map((item) => ({ ...item, id: item.id || `variant-${componentKey(item.componentId)}-${componentKey(item.key || item.name)}`, key: componentKey(item.key || item.name), visibleInCatalog: item.visibleInCatalog !== false })).filter((variant) => !obsoleteStarterVariantIds.has(variant.id) || componentTokens.some((token) => token.variantId === variant.id)) || [];
   const componentVariants = [...suppliedVariants];
   componentTokens.forEach((token) => {
     if (componentVariants.some((item) => item.id === token.variantId)) return;

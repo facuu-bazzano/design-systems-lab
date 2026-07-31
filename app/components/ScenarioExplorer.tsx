@@ -3,7 +3,7 @@
 import { CSSProperties, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Activity, Home, Library } from "lucide-react";
 import { catalogRegistry, CatalogEntry } from "../lib/catalog-registry";
-import { DesignSystemProject, PlatformId } from "../lib/model";
+import { DesignSystemProject, PlatformId, visibleRendererVariants } from "../lib/model";
 import { ScenarioDefinition, scenarioCoverage, scenarioRegistry } from "../lib/scenario-registry";
 import { resolveProjectTokens, resolveVariantCssVariables } from "../lib/token-resolver";
 import { ScenarioComponentPreview } from "./ScenarioComponentPreview";
@@ -32,7 +32,7 @@ const scenarioSections: Record<ScenarioDefinition["id"], { title: string; descri
 
 function ScenarioModule({ entry, style, project, theme, platform }: { entry: CatalogEntry; style: CSSProperties; project: DesignSystemProject; theme: string; platform: PlatformId }) {
   const definition = project.components.find((component) => component.rendererKey === entry.id);
-  const variants = definition ? project.componentVariants.filter((variant) => variant.componentId === definition.id && variant.visibleInCatalog) : [];
+  const variants = definition ? visibleRendererVariants(project, definition) : [];
   const [selectedVariantId, setSelectedVariantId] = useState(variants[0]?.id || "");
   const activeVariantId = variants.some((variant) => variant.id === selectedVariantId) ? selectedVariantId : variants[0]?.id || "";
   const variantStyle = activeVariantId ? resolveVariantCssVariables(project, activeVariantId, theme, platform) as CSSProperties : undefined;
