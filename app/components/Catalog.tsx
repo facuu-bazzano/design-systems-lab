@@ -71,7 +71,7 @@ function ExtendedPreview({ entry, state }: { entry: CatalogEntry; state: string 
   return <button type="button" className={`project-button ${stateClass(state)}`} disabled={disabled}>{entry.name}</button>;
 }
 
-function PreviewFor({ entry, state, portalStyle }: { entry: CatalogEntry; state: string; portalStyle?: CSSProperties }) {
+export function ProjectComponentPreview({ entry, state, portalStyle }: { entry: CatalogEntry; state: string; portalStyle?: CSSProperties }) {
   if (entry.id === "button") return <ProjectButton state={state} />;
   if (entry.id === "link") return state === "Disabled" ? <span className={`project-link ${stateClass(state)}`} aria-disabled="true">Ver detalle</span> : <a href="#catalog-navigation" className={`project-link ${stateClass(state)}`}>Ver detalle</a>;
   if (entry.id === "input" || entry.id === "textarea") return <ProjectField multiline={entry.id === "textarea"} state={state} />;
@@ -102,7 +102,7 @@ function TokenInspector({ entry, project, theme, platform, onOpenTokens }: { ent
 }
 
 function ComponentSpec({ entry, project, theme, platform, portalStyle, onOpenTokens }: { entry: CatalogEntry; project: DesignSystemProject; theme: string; platform: PlatformId; portalStyle?: CSSProperties; onOpenTokens: Props["onOpenTokens"] }) {
-  return <Card className="catalog-spec"><div className="catalog-spec-head"><div><h3>{entry.name}</h3><p>{entry.purpose}</p></div></div><div className="catalog-state-matrix">{entry.states.map((state) => <div className={`catalog-state ${state === "Open" ? "has-open-overlay" : ""}`} key={state}><span>{state}</span><div><PreviewFor entry={entry} state={state} portalStyle={portalStyle} /></div></div>)}</div><TokenInspector entry={entry} project={project} theme={theme} platform={platform} onOpenTokens={onOpenTokens} /></Card>;
+  return <Card className="catalog-spec"><div className="catalog-spec-head"><div><h3>{entry.name}</h3><p>{entry.purpose}</p></div></div><div className="catalog-state-matrix">{entry.states.map((state) => <div className={`catalog-state ${state === "Open" ? "has-open-overlay" : ""}`} key={state}><span>{state}</span><div><ProjectComponentPreview entry={entry} state={state} portalStyle={portalStyle} /></div></div>)}</div><TokenInspector entry={entry} project={project} theme={theme} platform={platform} onOpenTokens={onOpenTokens} /></Card>;
 }
 
 export function Catalog({ project, onOpenTokens }: Props) {

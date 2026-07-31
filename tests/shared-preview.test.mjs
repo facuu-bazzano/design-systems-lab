@@ -4,17 +4,58 @@ import test from "node:test";
 
 const projectRoot = new URL("../", import.meta.url);
 
-test("catalog and health reuse the same project preview components", async () => {
+test("catalog and scenarios reuse the same canonical project preview renderer", async () => {
   const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
   const health = await readFile(new URL("app/components/HealthView.tsx", projectRoot), "utf8");
+  const scenarios = await readFile(new URL("app/components/ScenarioExplorer.tsx", projectRoot), "utf8");
   const css = await readFile(new URL("app/globals.css", projectRoot), "utf8");
 
   assert.match(catalog, /ProjectAlertPreview/);
-  assert.match(health, /ProjectAlertPreview/);
+  assert.match(catalog, /export function ProjectComponentPreview/);
+  assert.match(scenarios, /import \{ ProjectComponentPreview \} from "\.\/Catalog"/);
+  assert.match(scenarios, /<ProjectComponentPreview/);
+  assert.match(health, /onOpenScenarios/);
+  assert.doesNotMatch(health, /ProjectAlertPreview/);
   assert.doesNotMatch(health, /scenario-alert/);
   assert.doesNotMatch(css, /\.ds-alert|\.finding-item|\.scenario-alert/);
   assert.equal(css.match(/\.project-alert\{[^}]*border:/g)?.length, 1);
   assert.doesNotMatch(css, /\.project-alert\{[^}]*border-left/);
+});
+
+test("scenario suite covers the complete catalog and separates platform structures", async () => {
+  const registry = await readFile(new URL("app/lib/scenario-registry.ts", projectRoot), "utf8");
+  const catalogRegistry = await readFile(new URL("app/lib/catalog-registry.ts", projectRoot), "utf8");
+  const scenarios = await readFile(new URL("app/components/ScenarioExplorer.tsx", projectRoot), "utf8");
+  const css = await readFile(new URL("app/globals.css", projectRoot), "utf8");
+  const catalogIds = [...catalogRegistry.matchAll(/entry\("([^"]+)"/g)].map((match) => match[1]);
+  const scenarioBlock = registry.match(/scenarioRegistry:[\s\S]*?export const scenarioCoverage/)?.[0] || "";
+  const scenarioIds = [...scenarioBlock.matchAll(/"([a-z-]+)"/g)].map((match) => match[1]).filter((id) => catalogIds.includes(id));
+  assert.deepEqual([...new Set(scenarioIds)].sort(), [...new Set(catalogIds)].sort());
+  assert.match(css, /platform-mobile \.scenario-product-shell/);
+  assert.match(css, /platform-tablet \.scenario-product-shell/);
+  assert.match(css, /platform-desktop \.scenario-product-shell/);
+  assert.match(scenarios, /showGrid/);
+});
+
+test("the single resolver exports typography, spacing and layout variables", async () => {
+  const resolver = await readFile(new URL("app/lib/token-resolver.ts", projectRoot), "utf8");
+  assert.match(resolver, /resolveResponsiveScale/);
+  assert.match(resolver, /resolveLayout/);
+  assert.match(resolver, /--ds-type-\$\{role\}-size/);
+  assert.match(resolver, /--ds-spacing-multiplier/);
+  assert.match(resolver, /--ds-columns/);
+  assert.match(resolver, /--ds-baseline/);
+});
+
+test("foundation configuration views expose focused previews and scenarios are a first-class section", async () => {
+  const page = await readFile(new URL("app/page.tsx", projectRoot), "utf8");
+  const model = await readFile(new URL("app/lib/model.ts", projectRoot), "utf8");
+
+  assert.match(page, /<FoundationPreview project=\{project\} focus="color"/);
+  assert.match(page, /<FoundationPreview project=\{project\} focus="typography"/);
+  assert.match(page, /<FoundationPreview project=\{project\} focus="layout"/);
+  assert.match(page, /id: "scenarios"/);
+  assert.match(model, /\| "scenarios" \|/);
 });
 
 test("forced catalog states remain bounded and respect real disabled semantics", async () => {

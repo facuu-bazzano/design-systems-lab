@@ -1,10 +1,12 @@
 "use client";
 
 import { ChangeEvent, CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Component, HeartPulse, Layers3, PaintBucket, Trash2, Type, X } from "lucide-react";
+import { BookOpen, Component, HeartPulse, Layers3, MonitorCog, PaintBucket, Trash2, Type, X } from "lucide-react";
 import { Catalog } from "./components/Catalog";
 import { BrandMark } from "./components/BrandMark";
+import { FoundationPreview } from "./components/FoundationPreview";
 import { HealthView } from "./components/HealthView";
+import { ScenarioExplorer } from "./components/ScenarioExplorer";
 import { Alert, Badge, Button, Card, Checkbox, Combobox, Dialog, ExportMenu, HealthIndicator, IconButton, Input, LabHeader, ProjectMenu, RadioGroup, SectionHeading, Select, Switch, Table, Tabs, Textarea } from "./components/ui/LabUI";
 import { ArrowRightIcon, ChevronDownIcon, GridIcon, MoonIcon, SunIcon } from "./components/ui/Icons";
 import { analyzeProject, HealthFinding } from "./lib/health";
@@ -13,7 +15,7 @@ import { buildFigmaMcpPackage, FigmaConflictPolicy } from "./lib/figma-mcp";
 import { colorLibraries, colorPresets, paletteFromPreset } from "./lib/color-presets";
 import { allColorReferences, createBlankProject, createInitialProject, DesignSystemProject, fontOptions, generateColorScale, generateTypeLevels, makeManualPalette, makePalette, makeTypographyFamily, migrateProject, PlatformId, platformOrder, primaryTypographyFamily, ratioOptions, relativeLuminance, resolveComponent, resolveLayout, resolveResponsiveScale, resolveSemantic, ScaleGroupKey, scaleLabels, typographyFamilyForLevel, uid } from "./lib/model";
 
-type MainSection = "colors" | "typography" | "scales" | "semantics" | "components" | "catalog" | "health";
+type MainSection = "colors" | "typography" | "scales" | "semantics" | "components" | "catalog" | "scenarios" | "health";
 type Notice = { message: string; tone: "success" | "error" };
 const STORAGE_KEY = "design-system-lab-project-v1";
 const THEME_KEY = "design-system-lab-ui-theme";
@@ -103,6 +105,7 @@ function ColorView({ project, update }: { project: DesignSystemProject; update: 
         <div className="palette-scale-v4">{steps.map((step) => <label key={step}><span style={{ background: palette.scale[step] }}><input aria-label={`Color ${palette.name} ${step}`} type="color" value={palette.scale[step].slice(0, 7)} onChange={(event) => update((current) => ({ ...current, foundations: { ...current.foundations, colors: current.foundations.colors.map((item) => item.id === palette.id ? { ...item, scale: { ...item.scale, [step]: event.target.value.toUpperCase() }, manualSteps: [...new Set([...item.manualSteps, step])] } : item) } }))} /></span><div><b>{step}</b><IconButton label={`Eliminar tono ${step}`} disabled={steps.length <= 2} onClick={() => update((current) => ({ ...current, foundations: { ...current.foundations, colors: current.foundations.colors.map((item) => { if (item.id !== palette.id) return item; const scale = { ...item.scale }; delete scale[step]; return { ...item, scale, manualSteps: item.manualSteps.filter((manual) => manual !== step) }; }) } }))}><X /></IconButton></div><input value={palette.scale[step]} onChange={(event) => update((current) => ({ ...current, foundations: { ...current.foundations, colors: current.foundations.colors.map((item) => item.id === palette.id ? { ...item, scale: { ...item.scale, [step]: event.target.value }, manualSteps: [...new Set([...item.manualSteps, step])] } : item) } }))} /></label>)}</div>
       </Card>;
     })}
+    <FoundationPreview project={project} focus="color" />
   </div>;
 }
 
@@ -147,6 +150,7 @@ function TypographyView({ project, update }: { project: DesignSystemProject; upd
     <Card><SectionHeading level={2} title="Familias del proyecto" description="Agregá las familias que el sistema necesita y elegí cuál funciona como punto de partida. Cada estilo puede asignar una familia distinta." /><div className="font-add-row"><Combobox label="Buscar familia" value={candidate} onValueChange={setCandidate} options={options} renderOption={(option) => <span className="font-option"><span><b>{option.label}</b><small>{option.meta}</small></span><em style={{ fontFamily: `'${option.label}', sans-serif` }}>El veloz murciélago hindú</em></span>} /><Button onClick={() => addFamily(candidate)}>Agregar familia</Button></div><div className="custom-font-row"><Input label="Familia personalizada" value={custom} placeholder="Ej. Marca Sans" onChange={(event) => setCustom(event.target.value)} help="Se conserva aunque no figure en la lista." /><div className="custom-font-action"><span aria-hidden="true">Acción</span><Button onClick={() => addFamily(custom, true)}>Agregar personalizada</Button></div></div><div className="font-family-library">{project.foundations.typography.families.map((family) => { const usage = project.foundations.typography.levels.filter((level) => level.familyId === family.id).length; const isPrimary = family.id === project.foundations.typography.primaryFamilyId; return <article key={family.id} className="font-family-card"><div><span className="font-family-meta">{family.source === "google" ? "Google Fonts" : family.source === "system" ? "Común" : "Personalizada"}</span><h3 style={{ fontFamily: `'${family.family}', sans-serif` }}>{family.family}</h3><p style={{ fontFamily: `'${family.family}', sans-serif` }}>Diseñar con una voz tipográfica coherente.</p><small>{usage ? `${usage} ${usage === 1 ? "estilo asignado" : "estilos asignados"}` : "Sin estilos asignados"}</small></div><div className="font-family-actions">{isPrimary ? <span className="font-primary-label">Familia principal</span> : <Button variant="quiet" onClick={() => setPrimary(family.id)}>Usar como principal</Button>}<IconButton label={`Eliminar ${family.family}`} disabled={usage > 0 || project.foundations.typography.families.length === 1} onClick={() => removeFamily(family.id)}><Trash2 /></IconButton></div></article>; })}</div></Card>
     <Card><SectionHeading level={2} title="Estilo base y escala modular" description="Partí de un cuerpo legible y ajustá la proporción según el carácter del producto. Regenerar conserva las familias ya asignadas por rol." /><div className="type-controls"><Input label="Tamaño base" type="number" value={project.foundations.typography.base.size} suffix="px" onChange={(event) => update((current) => ({ ...current, foundations: { ...current.foundations, typography: { ...current.foundations.typography, base: { ...current.foundations.typography.base, size: Number(event.target.value) } } } }))} /><Select label="Proporción" value={String(project.foundations.typography.ratio)} onValueChange={(value) => regenerate(Number(value))} options={ratioOptions.map((item) => ({ value: String(item.value), label: item.name, meta: `${item.value}×` }))} /><Button variant="primary" onClick={() => regenerate(project.foundations.typography.ratio)}>Regenerar escala</Button></div></Card>
     <Card><SectionHeading level={2} title="Estilos tipográficos" description={`${project.foundations.typography.levels.length} estilos editables. La familia se asigna por estilo y se exporta como rol semántico.`} action={<Button onClick={addLevel}>Agregar estilo</Button>} /><div className="type-level-editor">{project.foundations.typography.levels.map((level) => { const family = typographyFamilyForLevel(project.foundations.typography, level); return <article key={level.id}><div className="type-level-fields"><Input label="Nombre" value={level.name} onChange={(event) => editLevel(level.id, { name: event.target.value })} /><Select label="Familia" value={level.familyId} onValueChange={(value) => editLevel(level.id, { familyId: value })} options={project.foundations.typography.families.map((item) => ({ value: item.id, label: item.family, meta: item.source === "google" ? "Google Fonts" : item.source === "system" ? "Común" : "Personalizada" }))} /><Input label="Tamaño" type="number" value={level.size} suffix="px" onChange={(event) => editLevel(level.id, { size: Number(event.target.value) })} /><Input label="Peso" type="number" value={level.weight} onChange={(event) => editLevel(level.id, { weight: Number(event.target.value) })} /><Input label="Interlineado" type="number" step=".05" value={level.lineHeight} onChange={(event) => editLevel(level.id, { lineHeight: Number(event.target.value) })} /><IconButton label={`Eliminar ${level.name}`} disabled={project.foundations.typography.levels.length === 1} onClick={() => update((current) => ({ ...current, foundations: { ...current.foundations, typography: { ...current.foundations.typography, levels: current.foundations.typography.levels.filter((item) => item.id !== level.id) } } }))}><X /></IconButton></div><p style={{ fontFamily: `'${family?.family || "system-ui"}', sans-serif`, fontSize: Math.min(level.size, 54), fontWeight: level.weight, lineHeight: level.lineHeight }}>Diseñar con una base coherente.</p></article>; })}</div></Card>
+    <FoundationPreview project={project} focus="typography" />
   </div>;
 }
 
@@ -173,6 +177,7 @@ function ScalesView({ project, update, initialPlatform }: { project: DesignSyste
     <Card><SectionHeading level={2} title="Configuración de layout" description="Columnas, márgenes y gutters definen la estructura. El ancho máximo evita que pantallas amplias escalen sin control." /><div className="layout-inputs-v4"><Input label="Columnas" type="number" value={layout.columns} onChange={(event) => setLayout("columns", Number(event.target.value))} /><Input label="Margen" type="number" value={layout.margin} suffix="px" onChange={(event) => setLayout("margin", Number(event.target.value))} /><Input label="Separación entre columnas" type="number" value={layout.gutter} suffix="px" onChange={(event) => setLayout("gutter", Number(event.target.value))} /><Input label="Ancho máximo de contenido" type="number" value={layout.maxWidth} suffix="px" onChange={(event) => setLayout("maxWidth", Number(event.target.value))} /><Input label="Punto de quiebre" type="number" value={layout.breakpoint} suffix="px" onChange={(event) => setLayout("breakpoint", Number(event.target.value))} /><div className="baseline-field"><span className="ui-field-label">Grilla de línea base</span><Switch checked={layout.baselineEnabled} onCheckedChange={(checked) => setLayout("baselineEnabled", checked)} ariaLabel="Grilla de línea base" /><small>Alinea el ritmo vertical del contenido en múltiplos regulares.</small></div></div></Card>
     <Card><SectionHeading level={2} title="Preview de layout" description="Frames proporcionales con columnas superpuestas. Mobile se representa como teléfono vertical." /><div className="layout-previews-v4">{enabled.filter((id) => id !== "mobile-landscape").map((id) => <LayoutPreview key={id} project={project} platform={id} />)}</div></Card>
     <Card className="primitive-scales-card"><SectionHeading level={2} title="Escalas primitivas" description="Valores reutilizables para espaciado, dimensiones, radios, bordes, sombras y opacidad." /><Tabs value={group} onValueChange={(value) => setGroup(value as ScaleGroupKey)} ariaLabel="Grupos de escala" tabs={(Object.keys(scaleLabels) as ScaleGroupKey[]).map((id) => ({ value: id, label: scaleLabels[id] }))} /><div className="scale-list-v4">{project.foundations.scales[group].map((token) => <div key={token.id}><Input label="Nombre" value={token.name} onChange={(event) => update((current) => ({ ...current, foundations: { ...current.foundations, scales: { ...current.foundations.scales, [group]: current.foundations.scales[group].map((item) => item.id === token.id ? { ...item, name: event.target.value } : item) } } }))} /><Input label="Valor" value={token.value.replace("px", "")} suffix={token.value.includes("px") ? "px" : undefined} onChange={(event) => update((current) => ({ ...current, foundations: { ...current.foundations, scales: { ...current.foundations.scales, [group]: current.foundations.scales[group].map((item) => item.id === token.id ? { ...item, value: `${event.target.value}${token.value.includes("px") ? "px" : ""}` } : item) } } }))} /></div>)}</div></Card>
+    <FoundationPreview project={project} focus="layout" />
     <Card><SectionHeading level={2} title="Foundations personalizados" description="Sección avanzada y opcional para capas, iconos, motion u otras reglas del cliente no cubiertas por las categorías principales." /><Button onClick={() => update((current) => ({ ...current, foundations: { ...current.foundations, customFoundations: [...current.foundations.customFoundations, { id: uid(), name: "Nueva foundation", description: "Necesidad específica del cliente", tokens: [] }] } }))}>Agregar foundation personalizada</Button></Card>
   </div>;
 }
@@ -248,6 +253,7 @@ export default function Home() {
   const [exportOpen, setExportOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
   const [selectedToken, setSelectedToken] = useState("");
+  const [scenarioTarget, setScenarioTarget] = useState("");
   const [scaleTarget, setScaleTarget] = useState<PlatformId>();
   const importRef = useRef<HTMLInputElement>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -261,7 +267,7 @@ export default function Home() {
   useEffect(() => {
     if (!active) return;
     window.scrollTo({ top: 0, behavior: "auto" });
-    const sectionLabel: Record<MainSection, string> = { colors: "Color", typography: "Tipografía", scales: "Escalas y layout", semantics: "Tokens semánticos", components: "Tokens de componente", catalog: "Catálogo", health: "Salud del sistema" };
+    const sectionLabel: Record<MainSection, string> = { colors: "Color", typography: "Tipografía", scales: "Escalas y layout", semantics: "Tokens semánticos", components: "Tokens de componente", catalog: "Catálogo", scenarios: "Escenarios", health: "Salud del sistema" };
     document.title = `${sectionLabel[section]} · ${project.meta.name} · Laboratorio de Sistemas de Diseño`;
     if (!navigationRequestedRef.current) return;
     navigationRequestedRef.current = false;
@@ -325,7 +331,8 @@ export default function Home() {
     if (section === "semantics") return <TokensView key={`semantic-${selectedToken}`} project={project} update={update} selected={selectedToken} layer="semantic" />;
     if (section === "components") return <TokensView key={`component-${selectedToken}`} project={project} update={update} selected={selectedToken} layer="component" />;
     if (section === "catalog") return <Catalog project={project} onOpenTokens={openTokens} />;
-    return <HealthView project={project} onOpenTokens={openTokens} onOpenCatalog={() => navigateTo("catalog")} onOpenFinding={openFinding} />;
+    if (section === "scenarios") return <ScenarioExplorer key={`scenario-${scenarioTarget || "all"}`} project={project} initialComponent={scenarioTarget} />;
+    return <HealthView project={project} onOpenTokens={openTokens} onOpenCatalog={() => navigateTo("catalog")} onOpenScenarios={(component) => { setScenarioTarget(component || ""); navigateTo("scenarios"); }} onOpenFinding={openFinding} />;
   };
   const navigation: { id: MainSection; label: string; icon: React.ReactNode; group?: string }[] = [
     { id: "colors", label: "Color", icon: <PaintBucket />, group: "Foundations" },
@@ -334,6 +341,7 @@ export default function Home() {
     { id: "semantics", label: "Tokens semánticos", icon: <Layers3 />, group: "Sistema" },
     { id: "components", label: "Tokens de componente", icon: <Component /> },
     { id: "catalog", label: "Catálogo", icon: <BookOpen />, group: "Evaluar" },
+    { id: "scenarios", label: "Escenarios", icon: <MonitorCog /> },
     { id: "health", label: "Salud del sistema", icon: <HeartPulse /> },
   ];
   return <div className={`lab-v4 theme-${theme}`} data-lab-theme={theme}>

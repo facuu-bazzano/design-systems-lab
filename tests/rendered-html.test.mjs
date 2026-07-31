@@ -60,7 +60,8 @@ test("keeps v4 capabilities in one serializable project model", async () => {
   assert.match(page, /localStorage\.setItem/);
   assert.match(page, /importProject/);
   assert.match(page, /Configurar exportación/);
-  assert.match(page, /type MainSection = "colors" \| "typography" \| "scales" \| "semantics" \| "components" \| "catalog" \| "health"/);
+  assert.match(page, /type MainSection = "colors" \| "typography" \| "scales" \| "semantics" \| "components" \| "catalog" \| "scenarios" \| "health"/);
+  assert.match(page, /id: "scenarios", label: "Escenarios"/);
   assert.doesNotMatch(page, /id: "project", label: "Proyecto"/);
   assert.match(page, /onOpenProject=\{\(\) => setProjectOpen\(true\)\}/);
   assert.doesNotMatch(page, /Handoff/);

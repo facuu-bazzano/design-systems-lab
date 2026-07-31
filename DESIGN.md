@@ -160,7 +160,7 @@ Cards should not be nested inside cards unless the inner element is a genuine re
 
 ### Navigation
 
-Global navigation is: Color, Tipografia, Escalas y layout, Tokens semanticos, Tokens de componente, Catalogo, Salud del sistema. Project configuration opens from the project-name ghost action in the header and must not be duplicated in the sidebar. Exportar remains a header action, not a sidebar destination.
+Global navigation is: Color, Tipografia, Escalas y layout, Tokens semanticos, Tokens de componente, Catalogo, Escenarios, Salud del sistema. Project configuration opens from the project-name ghost action in the header and must not be duplicated in the sidebar. Exportar remains a header action, not a sidebar destination.
 
 ### Dialogs, Menus, and Overlays
 
@@ -183,9 +183,19 @@ Global navigation is: Color, Tipografia, Escalas y layout, Tokens semanticos, To
 
 Catalog previews must use project-resolved variables. The catalog is both playground and documentation. Each component card should show state matrices and token inspection without hiding important token chains behind optional menus.
 
+### Focused Foundation Previews
+
+Color, Tipografia, and Escalas y layout each include a compact live preview beside their configuration work. These previews isolate the decision being edited while still resolving the real project mode and platform. They must consume the shared resolver for semantic color roles, named type roles, responsive scale multipliers, spacing, dimensions, columns, margins, gutters, maximum width, and baseline grid. They are diagnostic aids, not separate mock implementations.
+
+### Scenario Suite
+
+Escenarios is the system-level visual evidence workspace. It combines the real project foundations and tokens in three realistic flows whose registry covers every catalog component. Mobile, Tablet, and Desktop must use genuinely different information structures; resizing one generic mock is not an acceptable platform comparison. Mode comparison must render each project mode on the same selected platform.
+
+Catalog and Escenarios share one canonical component-preview renderer. Scenario modules may compose those primitives, but may not restyle or fork their semantic states. Missing required references remain an actionable pending state instead of receiving invented colors. Health links to the exact scenario evidence affected by a finding; it does not duplicate a miniature product mock.
+
 ### Health View
 
-Health is for system coherence and prioritization. Every finding must point to a real correction target. Avoid dead-end "Corregir" actions.
+Health is for system coherence and prioritization. Every finding must point to a real correction target or its exact visual evidence in Escenarios. Avoid dead-end "Corregir" actions and do not embed a competing scenario renderer inside Health.
 
 ## Do's and Don'ts
 

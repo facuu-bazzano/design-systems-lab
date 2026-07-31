@@ -1,5 +1,5 @@
 export type PlatformId = "mobile" | "mobile-landscape" | "tablet" | "desktop";
-export type LabSection = "project" | "colors" | "typography" | "scales" | "semantics" | "catalog" | "health" | "export";
+export type LabSection = "project" | "colors" | "typography" | "scales" | "semantics" | "catalog" | "scenarios" | "health" | "export";
 export type ScaleGroupKey = "spacing" | "dimensions" | "radii" | "borders" | "shadows" | "opacity";
 export type ProjectState = "validated" | "blank";
 export type ScaleToken = { id: string; name: string; value: string };

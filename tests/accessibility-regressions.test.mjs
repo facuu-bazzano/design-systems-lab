@@ -67,11 +67,14 @@ test("menús no modales conservan el scroll y overlays anidados permanecen dentr
   assert.match(css, /\.export-format-stack\{display:grid;gap:16px\}/);
 });
 
-test("Salud conserva un único main y etiqueta escenarios", () => {
+test("Salud conserva un único main y deriva la evidencia a escenarios", async () => {
+  const scenarios = readFileSync(new URL("../app/components/ScenarioExplorer.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(health, /<main[> ]/);
-  assert.match(health, /<article className=\{`health-scenario/);
-  assert.match(health, /aria-labelledby=\{titleId\}/);
-  assert.match(health, /className="scenario-body"/);
+  assert.match(health, /onOpenScenarios/);
+  assert.doesNotMatch(health, /health-scenarios/);
+  assert.doesNotMatch(scenarios, /<main[> ]/);
+  assert.match(scenarios, /<section id="scenario-content"/);
+  assert.match(scenarios, /aria-label=\{`Contenido de/);
 });
 
 test("combobox tipográfico implementa listbox y teclado APG", () => {

@@ -37,7 +37,7 @@ The intended workflow is:
 1. Choose either a validated starter system or a blank project.
 2. Define project identity and active platforms.
 3. Configure foundations, semantics, and component tokens.
-4. Evaluate behavior through the component catalog and system-health views.
+4. Evaluate individual behavior in the component catalog, combined behavior across modes and platforms in Escenarios, and prioritization in system health.
 5. Export project files, token artifacts, or documentation for further manual work.
 
 ## Capabilities and Constraints
@@ -50,6 +50,7 @@ The intended workflow is:
 - Use the existing internal component library and Radix primitives selectively; do not replace the UI with a third-party visual framework without explicit approval.
 - Do not make large navigation changes, redesigns, or component substitutions without explicit user approval.
 - Treat published Storybook as QA/documentation for the internal component library, not as the product itself.
+- Keep focused foundation previews, Catalog, Escenarios, and Health on the same token-resolution path; they are different levels of inspection, not independent mock implementations.
 
 Open decision: Impeccable findings should be reviewed by the user before any design changes are implemented.
 
