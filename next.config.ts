@@ -7,7 +7,8 @@ const nextConfig: NextConfig = {
   basePath: pagesBasePath,
   trailingSlash: true,
   images: { unoptimized: true },
-  htmlLimitedBots: /.*/,
+  // The Lab is an interactive client application; never serve a bot-only shell.
+  htmlLimitedBots: /$^/,
 };
 
 export default nextConfig;

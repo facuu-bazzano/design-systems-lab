@@ -10,6 +10,7 @@ const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
 const figmaMcp = readFileSync(new URL("../app/lib/figma-mcp.ts", import.meta.url), "utf8");
 const icons = readFileSync(new URL("../app/components/ui/Icons.tsx", import.meta.url), "utf8");
 const uiStories = readFileSync(new URL("../app/components/ui/LabUI.stories.tsx", import.meta.url), "utf8");
+const nextConfig = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
 
 function relativeLuminance(hex) {
   const channels = hex.match(/[a-f\d]{2}/gi).map((value) => {
@@ -23,6 +24,13 @@ function contrastRatio(a, b) {
   const [lighter, darker] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
   return (lighter + 0.05) / (darker + 0.05);
 }
+
+test("la pantalla inicial nunca se entrega como shell estatico para bots", () => {
+  assert.match(nextConfig, /htmlLimitedBots:\s*\/\$\^\//);
+  assert.doesNotMatch(nextConfig, /htmlLimitedBots:\s*\/\.\*\//);
+  assert.match(page, /onClick=\{\(\) => onChoose\("validated"\)\}/);
+  assert.match(page, /onClick=\{\(\) => onChoose\("blank"\)\}/);
+});
 
 test("exportación usa un diálogo modal con nombre, Escape y restauración de foco", () => {
   assert.match(page, /<Dialog open=\{open\}/);
