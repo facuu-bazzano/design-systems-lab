@@ -5,17 +5,12 @@ import { catalogRegistry, CatalogEntry } from "../lib/catalog-registry";
 import { DesignSystemProject, PlatformId } from "../lib/model";
 import { ScenarioDefinition, scenarioCoverage, scenarioRegistry } from "../lib/scenario-registry";
 import { resolveProjectTokens } from "../lib/token-resolver";
-import { ProjectComponentPreview } from "./Catalog";
+import { ScenarioComponentPreview } from "./ScenarioComponentPreview";
 import { Alert, Badge, Card, Checkbox, SectionHeading, Select, Toggle } from "./ui/LabUI";
 
 type ExplorerView = "explore" | "platforms" | "modes";
 
 const comparisonPlatforms: PlatformId[] = ["mobile", "mobile-landscape", "tablet", "desktop"];
-const usefulState: Record<string, string> = {
-  checkbox: "Selected", radio: "Selected", switch: "Selected", tabs: "Selected", alert: "Warning", badge: "Success",
-  progress: "Complete", accordion: "Open", dropdown: "Default", pagination: "Selected", card: "Hover", list: "Selected", toast: "Success",
-};
-
 const scenarioSections: Record<ScenarioDefinition["id"], { title: string; description: string; componentIds: string[] }[]> = {
   configuration: [
     { title: "Datos principales", description: "Información, selección y agenda.", componentIds: ["input", "textarea", "select", "calendar"] },
@@ -35,8 +30,7 @@ const scenarioSections: Record<ScenarioDefinition["id"], { title: string; descri
 };
 
 function ScenarioModule({ entry, style }: { entry: CatalogEntry; style: CSSProperties }) {
-  const state = usefulState[entry.id] || entry.states[0];
-  return <article className={`scenario-module scenario-module-${entry.id}`}><span>{entry.name}</span><ProjectComponentPreview entry={entry} state={state} portalStyle={style} /></article>;
+  return <article className={`scenario-module scenario-module-${entry.id}`}><span>{entry.name}</span><ScenarioComponentPreview entry={entry} portalStyle={style} /></article>;
 }
 
 function ScenarioFlow({ scenario, entries, style }: { scenario: ScenarioDefinition; entries: CatalogEntry[]; style: CSSProperties }) {
@@ -58,10 +52,12 @@ function ScenarioCanvas({ project, scenarioId, initialTheme, platform, showGrid,
   const scenario = scenarioRegistry.find((item) => item.id === scenarioId) || scenarioRegistry[0];
   const snapshot = resolveProjectTokens(project, activeTheme, platform);
   const entries = scenario.componentIds.map((id) => catalogRegistry.find((entry) => entry.id === id)).filter(Boolean) as CatalogEntry[];
-  const style = snapshot.cssVariables as CSSProperties;
+  const columnsNumber = Number((snapshot.cssVariables as Record<string, string | number>)["--ds-columns"]) || 4;
+  const moduleSpan = platform === "mobile" ? columnsNumber : Math.max(1, Math.ceil(columnsNumber / 2));
+  const style = { ...snapshot.cssVariables, "--scenario-module-span": String(moduleSpan) } as CSSProperties;
   const platformName = project.platforms[platform]?.name || platform;
   const themeName = project.themes.find((item) => item.id === activeTheme)?.name || activeTheme;
-  const columns = String((snapshot.cssVariables as Record<string, string | number>)["--ds-columns"] || "—");
+  const columns = String(columnsNumber);
   const typeMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-typography-multiplier"] || 1);
   const spacingMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-spacing-multiplier"] || 1);
   const dimensionsMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-dimensions-multiplier"] || 1);
@@ -83,12 +79,14 @@ function ScenarioCanvas({ project, scenarioId, initialTheme, platform, showGrid,
     </header>
     <div className="scenario-device-stage">
       <div className={`scenario-product-shell ${showGrid ? "show-grid" : ""}`} style={style}>
-        <div className="scenario-grid-lines" aria-hidden="true">{Array.from({ length: Number(columns) || 4 }).map((_, index) => <i key={index} />)}</div>
         <header className="scenario-product-header"><div><span>{project.meta.brandMark}</span><b>{project.meta.name}</b></div><nav aria-label="Navegación del escenario"><a href={`#${contentId}`}>Inicio</a><a href={`#${contentId}`}>Equipo</a><a href={`#${contentId}`}>Ajustes</a></nav></header>
         <aside className="scenario-product-sidebar" aria-label="Navegación secundaria"><b>{scenario.name}</b><a href={`#${contentId}`}><span aria-hidden="true">01</span>Resumen</a><a href={`#${contentId}`}><span aria-hidden="true">02</span>Actividad</a><a href={`#${contentId}`}><span aria-hidden="true">03</span>Biblioteca</a></aside>
         <section id={contentId} className="scenario-product-main" aria-label={`Contenido de ${scenario.name}`}>
-          <div className="scenario-product-title"><div><small>Escenario vivo</small><h3>{scenario.name}</h3><p>{scenario.description}</p></div></div>
-          <ScenarioFlow scenario={scenario} entries={entries} style={style} />
+          <div className="scenario-product-content">
+            <div className="scenario-grid-lines" aria-hidden="true">{Array.from({ length: columnsNumber }).map((_, index) => <i key={index} />)}</div>
+            <div className="scenario-product-title"><div><small>Escenario vivo</small><h3>{scenario.name}</h3><p>{scenario.description}</p></div></div>
+            <ScenarioFlow scenario={scenario} entries={entries} style={style} />
+          </div>
         </section>
         <aside className="scenario-product-inspector"><b>Inspector</b><span>{entries.length} componentes</span><span>{snapshot.missing.length ? `${snapshot.missing.length} referencias pendientes` : "Tokens resueltos"}</span><dl><div><dt>Modo</dt><dd>{themeName}</dd></div><div><dt>Tipografía</dt><dd>{typeMultiplier}×</dd></div><div><dt>Espaciado</dt><dd>{spacingMultiplier}×</dd></div><div><dt>Grilla</dt><dd>{columns} columnas</dd></div></dl></aside>
         <nav className="scenario-product-bottom" aria-label="Navegación mobile"><a href={`#${contentId}`}>Inicio</a><a href={`#${contentId}`}>Actividad</a><a href={`#${contentId}`}>Perfil</a></nav>

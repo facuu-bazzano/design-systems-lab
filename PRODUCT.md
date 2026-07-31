@@ -37,7 +37,7 @@ The intended workflow is:
 1. Choose either a validated starter system or a blank project.
 2. Define project identity and active platforms.
 3. Configure foundations, semantics, and component tokens.
-4. Evaluate individual behavior in the component catalog, combined behavior across modes and platforms in Escenarios, and prioritization in system health.
+4. Inspect state coverage in the component catalog, exercise real project-component behavior across modes and platforms in Escenarios, and prioritize corrections in system health.
 5. Export project files, token artifacts, or documentation for further manual work.
 
 ## Capabilities and Constraints

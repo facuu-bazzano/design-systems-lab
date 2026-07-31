@@ -4,16 +4,21 @@ import test from "node:test";
 
 const projectRoot = new URL("../", import.meta.url);
 
-test("catalog and scenarios reuse the same canonical project preview renderer", async () => {
+test("catalog documentation and functional scenarios keep separate renderers", async () => {
   const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
   const health = await readFile(new URL("app/components/HealthView.tsx", projectRoot), "utf8");
   const scenarios = await readFile(new URL("app/components/ScenarioExplorer.tsx", projectRoot), "utf8");
+  const scenarioPreviews = await readFile(new URL("app/components/ScenarioComponentPreview.tsx", projectRoot), "utf8");
   const css = await readFile(new URL("app/globals.css", projectRoot), "utf8");
 
   assert.match(catalog, /ProjectAlertPreview/);
   assert.match(catalog, /export function ProjectComponentPreview/);
-  assert.match(scenarios, /import \{ ProjectComponentPreview \} from "\.\/Catalog"/);
-  assert.match(scenarios, /<ProjectComponentPreview/);
+  assert.match(scenarios, /import \{ ScenarioComponentPreview \} from "\.\/ScenarioComponentPreview"/);
+  assert.match(scenarios, /<ScenarioComponentPreview/);
+  assert.doesNotMatch(scenarios, /ProjectComponentPreview|usefulState/);
+  assert.match(scenarioPreviews, /export function ScenarioComponentPreview/);
+  assert.match(scenarioPreviews, /onCheckedChange|onValueChange|onClick/);
+  assert.match(scenarioPreviews, /createPortal/);
   assert.match(health, /onOpenScenarios/);
   assert.doesNotMatch(health, /ProjectAlertPreview/);
   assert.doesNotMatch(health, /scenario-alert/);
@@ -39,10 +44,13 @@ test("scenario suite covers the complete catalog and separates platform structur
   assert.match(scenarios, /mobileSuite.*scenarioRegistry\.map/s);
   assert.match(scenarios, /Modo de color para/);
   assert.match(scenarios, /Foundations aplicados en/);
-  assert.match(scenarios, /const style = snapshot\.cssVariables as CSSProperties/);
+  assert.match(scenarios, /const style = \{ \.\.\.snapshot\.cssVariables/);
   assert.doesNotMatch(scenarios, /Simular escala|scaleSimulations|applyScaleSimulation/);
   assert.match(css, /\.scenario-product-main\{[^}]*overflow:auto/);
   assert.match(css, /\.scenario-product-main\{[^}]*overscroll-behavior-block:auto/);
+  assert.match(css, /\.scenario-product-content\{[^}]*grid-template-columns:repeat\(var\(--ds-columns\)/);
+  assert.match(css, /\.scenario-module-grid\{[^}]*grid-template-columns:subgrid/);
+  assert.match(css, /\.platform-mobile \.scenario-product-main\{[^}]*scrollbar-width:none/);
   assert.match(css, /\.scenario-device-stage\{[^}]*overflow-x:auto;overflow-y:hidden/);
   assert.match(css, /\.scenario-device-stage\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
   assert.match(css, /\.platform-mobile \.scenario-product-shell\{[^}]*height:720px/);
