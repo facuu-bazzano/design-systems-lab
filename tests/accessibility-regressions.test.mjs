@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../app/components/ui/LabUI.tsx", import.meta.url), "utf8");
@@ -178,6 +178,7 @@ test("iconos y chevrons se resuelven desde la librería compartida", () => {
 });
 
 test("Storybook conserva la matriz visual canónica de controles", () => {
+  assert.equal(existsSync(new URL("../app/components/ScenarioExplorer.stories.tsx", import.meta.url)), false, "Storybook no debe documentar previews del sistema generado");
   assert.match(uiStories, /export const ContratoVisualDeControles/);
   assert.match(uiStories, /data-lab-theme="light"/);
   assert.match(uiStories, /data-lab-theme="dark"/);
