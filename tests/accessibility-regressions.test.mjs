@@ -73,7 +73,7 @@ test("Salud conserva un único main y deriva la evidencia a escenarios", async (
   assert.match(health, /onOpenScenarios/);
   assert.doesNotMatch(health, /health-scenarios/);
   assert.doesNotMatch(scenarios, /<main[> ]/);
-  assert.match(scenarios, /<section id=\{contentId\}/);
+  assert.match(scenarios, /<section ref=\{scrollRef\} id=\{contentId\}/);
   assert.match(scenarios, /aria-label=\{`Contenido de/);
 });
 

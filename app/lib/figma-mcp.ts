@@ -1,5 +1,6 @@
 import { analyzeProject } from "./health";
-import { DesignSystemProject, PlatformId, platformOrder, resolveComponent, resolveLayout, resolveResponsiveScale, resolveScaleToken, resolveSemantic, typographyFamilyForLevel } from "./model";
+import { componentById, componentTokenPath, DesignSystemProject, PlatformId, platformOrder, resolveComponent, resolveLayout, resolveResponsiveScale, resolveScaleToken, resolveSemantic, typographyFamilyForLevel, variantById } from "./model";
+import { expandExportCategories } from "./exporters";
 
 export type FigmaMcpCategory = "colors" | "typography" | "scales" | "semantics" | "components" | "themes" | "platforms";
 export type FigmaConflictPolicy = "review" | "update-by-name" | "skip-existing";
@@ -120,14 +121,14 @@ function componentCollection(project: DesignSystemProject, options: FigmaMcpExpo
   const variables = project.componentTokens.map((token) => {
     const defaultReference = token.reference;
     const primitive = defaultReference.startsWith("primitive:") ? parsePrimitiveValue(resolveScaleToken(project, defaultReference)) : undefined;
-    const type: FigmaVariableType = defaultReference.startsWith("semantic:") ? "COLOR" : primitive?.type || "STRING";
+    const type: FigmaVariableType = token.valueType === "color" ? "COLOR" : ["dimension", "number", "fontWeight", "opacity", "duration"].includes(token.valueType) ? "FLOAT" : token.valueType === "boolean" ? "BOOLEAN" : primitive?.type || "STRING";
     const references = [defaultReference, ...Object.values(token.platformRefs)];
     const scopes = type === "COLOR"
-      ? uniqueScopes(...references.map((reference) => componentColorScopes(token.name, reference.startsWith("semantic:") ? reference.slice(9) : undefined)))
+      ? uniqueScopes(...references.map((reference) => componentColorScopes(componentTokenPath(project, token), reference.startsWith("semantic:") ? reference.slice(9) : undefined)))
       : type === "FLOAT" ? uniqueScopes(...references.map(primitiveNumberScopes)) : [];
     return {
-      key: `component.${token.id}`,
-      name: `Component/${pathName(token.component)}/${pathName(token.name)}`,
+      key: `component.${componentTokenPath(project, token)}`,
+      name: `Component/${pathName(componentById(project, token.componentId)?.name || "Component")}/${pathName(variantById(project, token.variantId)?.name || "Default")}/${pathName(token.state)}/${pathName(token.property)}`,
       type,
       description: token.description,
       scopes,
@@ -153,9 +154,9 @@ function componentCollection(project: DesignSystemProject, options: FigmaMcpExpo
 function layoutCollection(project: DesignSystemProject, options: FigmaMcpExportOptions): ManifestCollection | undefined {
   if (!selected(options, "platforms") && !selected(options, "scales")) return;
   const modes: ManifestMode[] = enabledPlatforms(project).map((platformId) => ({ key: platformId, name: project.platforms[platformId].name, platformId }));
-  const fields = ["columns", "margin", "gutter", "maxWidth", "breakpoint", "baseline"] as const;
-  const variables: ManifestVariable[] = fields.map((field) => ({ key: `layout.${field}`, name: `Layout/${field}`, type: "FLOAT", description: `Layout resuelto · ${field}`, scopes: field === "margin" || field === "gutter" || field === "baseline" ? ["GAP"] : field === "maxWidth" || field === "breakpoint" ? ["WIDTH_HEIGHT"] : [], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveLayout(project, mode.platformId!)[field], source: `layout.${mode.platformId}.${field}`, unit: field === "columns" ? undefined : "px" }])) }));
-  variables.push({ key: "layout.baseline-enabled", name: "Layout/baselineEnabled", type: "BOOLEAN", description: "Activa la grilla de línea base", scopes: [], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveLayout(project, mode.platformId!).baselineEnabled, source: `layout.${mode.platformId}.baselineEnabled` }])) });
+  const fields = ["columns", "margin", "gutter", "maxWidth", "breakpoint", "verticalRhythmUnit"] as const;
+  const variables: ManifestVariable[] = fields.map((field) => ({ key: `layout.${field}`, name: `Layout/${field}`, type: "FLOAT", description: `Layout resuelto · ${field}`, scopes: field === "margin" || field === "gutter" || field === "verticalRhythmUnit" ? ["GAP"] : field === "maxWidth" || field === "breakpoint" ? ["WIDTH_HEIGHT"] : [], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveLayout(project, mode.platformId!)[field], source: `layout.${mode.platformId}.${field}`, unit: field === "columns" ? undefined : "px" }])) }));
+  variables.push({ key: "layout.vertical-rhythm-enabled", name: "Layout/verticalRhythmEnabled", type: "BOOLEAN", description: "Incluye la validación avanzada de ritmo vertical", scopes: [], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveLayout(project, mode.platformId!).verticalRhythmEnabled, source: `layout.${mode.platformId}.verticalRhythmEnabled` }])) });
   for (const field of ["typography", "spacing", "dimensions"] as const) variables.push({ key: `responsive.${field}`, name: `Responsive/${field}`, type: "FLOAT", description: `Multiplicador responsivo · ${field}`, scopes: [], exposure: "contextual", hiddenFromPublishing: false, valuesByMode: Object.fromEntries(modes.map((mode) => [mode.key, { kind: "literal", value: resolveResponsiveScale(project, mode.platformId!)[field], source: `responsive.${mode.platformId}.${field}` }])) });
   return { key: "layout-responsive", name: "Layout · Responsive", strategy: "variables", modes, variables };
 }
@@ -288,6 +289,7 @@ ${target}
 
 export function buildFigmaMcpPackage(project: DesignSystemProject, partial: Partial<FigmaMcpExportOptions> = {}) {
   const options: FigmaMcpExportOptions = { categories: ["colors", "typography", "scales", "semantics", "components", "themes", "platforms"], conflictPolicy: "review", dryRun: true, ...partial };
+  options.categories = expandExportCategories(options.categories) as FigmaMcpCategory[];
   const manifest = buildManifest(project, options);
   const validation = validateManifest(project, manifest);
   const executionPlan = buildExecutionPlan(project, options, validation);

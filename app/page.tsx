@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Component, HeartPulse, Layers3, MonitorCog, PaintBucket, Trash2, Type, X } from "lucide-react";
+import { BookOpen, Component, Copy, HeartPulse, Layers3, MonitorCog, PaintBucket, Trash2, Type, X } from "lucide-react";
 import { Catalog } from "./components/Catalog";
 import { BrandMark } from "./components/BrandMark";
 import { FoundationPreview } from "./components/FoundationPreview";
@@ -10,10 +10,10 @@ import { ScenarioExplorer } from "./components/ScenarioExplorer";
 import { Alert, Badge, Button, Card, Checkbox, Combobox, Dialog, ExportMenu, HealthIndicator, IconButton, Input, LabHeader, ProjectMenu, RadioGroup, SectionHeading, Select, Switch, Table, Tabs, Textarea } from "./components/ui/LabUI";
 import { ArrowRightIcon, ChevronDownIcon, GridIcon, MoonIcon, SunIcon } from "./components/ui/Icons";
 import { analyzeProject, HealthFinding } from "./lib/health";
-import { buildCss, buildDocumentation, buildTokenSubset, downloadText, ExportCategory, projectFilename } from "./lib/exporters";
+import { buildCss, buildDocumentation, buildTokenSubset, downloadText, expandExportCategories, ExportCategory, projectFilename } from "./lib/exporters";
 import { buildFigmaMcpPackage, FigmaConflictPolicy } from "./lib/figma-mcp";
 import { colorLibraries, colorPresets, paletteFromPreset } from "./lib/color-presets";
-import { allColorReferences, createBlankProject, createInitialProject, DesignSystemProject, fontOptions, generateColorScale, generateTypeLevels, makeManualPalette, makePalette, makeTypographyFamily, migrateProject, PlatformId, platformOrder, primaryTypographyFamily, ratioOptions, relativeLuminance, resolveComponent, resolveLayout, resolveResponsiveScale, resolveSemantic, ScaleGroupKey, scaleLabels, typographyFamilyForLevel, uid } from "./lib/model";
+import { allColorReferences, componentKey, componentTokenPath, ComponentToken, ComponentVariant, createBlankProject, createInitialProject, DesignSystemProject, fontOptions, generateColorScale, generateTypeLevels, makeManualPalette, makePalette, makeTypographyFamily, migrateProject, PlatformId, platformOrder, primaryTypographyFamily, ProjectComponentDefinition, ratioOptions, relativeLuminance, resolveComponent, resolveLayout, resolveResponsiveScale, resolveSemantic, ScaleGroupKey, scaleLabels, tokenKey, TokenValueType, typographyFamilyForLevel, uid, variantInheritanceWouldCycle } from "./lib/model";
 
 type MainSection = "colors" | "typography" | "scales" | "semantics" | "components" | "catalog" | "scenarios" | "health";
 type Notice = { message: string; tone: "success" | "error" };
@@ -52,7 +52,9 @@ function paletteDependencies(project: DesignSystemProject, paletteName: string) 
     return references.filter(({ reference }) => reference?.split("@")[0].startsWith(prefix)).map(({ scope, reference }) => ({ id: token.id, label: semanticRoles[token.id] || token.name, scope, reference }));
   });
   const semanticIds = new Set(semantic.map((item) => item.id));
-  const components = project.componentTokens.filter((token) => [token.reference, ...Object.values(token.platformRefs)].some((reference) => reference?.startsWith("semantic:") && semanticIds.has(reference.slice(9))));
+  const components = project.componentTokens
+    .filter((token) => [token.reference, ...Object.values(token.platformRefs)].some((reference) => reference?.startsWith("semantic:") && semanticIds.has(reference.slice(9))))
+    .map((token) => ({ ...token, component: componentTokenPath(project, token) }));
   return { semantic, components };
 }
 
@@ -109,6 +111,28 @@ function ColorView({ project, update }: { project: DesignSystemProject; update: 
   </div>;
 }
 
+function ProjectSettingsDialog({ project, open, onClose, onApply, notice, error }: { project: DesignSystemProject; open: boolean; onClose: () => void; onApply: (next: DesignSystemProject) => void; notice: (message: string) => void; error: (message: string) => void }) {
+  const [draft, setDraft] = useState(project);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const dirty = JSON.stringify({ meta: draft.meta, platforms: draft.platforms }) !== JSON.stringify({ meta: project.meta, platforms: project.platforms });
+  const updateDraft = (recipe: (current: DesignSystemProject) => DesignSystemProject) => setDraft((current) => recipe(current));
+  const requestClose = () => { if (dirty) setConfirmDiscard(true); else onClose(); };
+  const apply = () => {
+    try {
+      onApply({ ...draft, meta: { ...draft.meta, updatedAt: new Date().toISOString() } });
+      notice("Cambios del proyecto aplicados");
+      onClose();
+    } catch {
+      error("No pudimos aplicar los cambios del proyecto. Conservamos el borrador para que puedas volver a intentarlo.");
+    }
+  };
+  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }} title="Configuración del proyecto" description="Editá la identidad y el alcance. Nada cambia fuera de este diálogo hasta que confirmes.">
+    <ProjectView project={draft} update={updateDraft} embedded />
+    {confirmDiscard ? <Alert tone="warning" title="Hay cambios sin aplicar" action={<div className="project-discard-actions"><Button onClick={() => setConfirmDiscard(false)}>Seguir editando</Button><Button variant="danger" onClick={onClose}>Descartar cambios</Button></div>}>Si cerrás ahora, la identidad y las plataformas volverán a su configuración confirmada.</Alert> : null}
+    <div className="project-dialog-actions"><Button onClick={requestClose}>Cancelar</Button><Button variant="primary" disabled={!dirty} onClick={apply}>Aplicar cambios</Button></div>
+  </Dialog>;
+}
+
 function TypographyView({ project, update }: { project: DesignSystemProject; update: (recipe: (current: DesignSystemProject) => DesignSystemProject) => void }) {
   const [custom, setCustom] = useState("");
   const primaryFamily = primaryTypographyFamily(project.foundations.typography);
@@ -154,9 +178,16 @@ function TypographyView({ project, update }: { project: DesignSystemProject; upd
   </div>;
 }
 
-function LayoutPreview({ project, platform }: { project: DesignSystemProject; platform: PlatformId }) {
+function LayoutRhythmPreview({ project, platform }: { project: DesignSystemProject; platform: PlatformId }) {
+  const [showColumns, setShowColumns] = useState(true);
+  const [showRhythm, setShowRhythm] = useState(false);
   const layout = resolveLayout(project, platform);
-  return <div className={`layout-frame-v4 frame-${platform}`}><div className="layout-frame-label"><b>{project.platforms[platform].name}</b><span>{layout.columns} columnas · margen {layout.margin}px · gutter {layout.gutter}px</span></div><div className="layout-device-v4" style={{ "--cols": layout.columns, "--margin": `${Math.min(layout.margin / 2, 28)}px`, "--gutter": `${Math.max(3, Math.min(layout.gutter / 4, 9))}px` } as CSSProperties}><div className="layout-columns-v4">{Array.from({ length: layout.columns }).map((_, index) => <i key={index} />)}</div><div className="layout-content-v4"><span /><span /><span /></div></div></div>;
+  const responsive = resolveResponsiveScale(project, platform);
+  const frames: Record<PlatformId, { width: number; height: number; scale: number }> = { mobile: { width: 390, height: 844, scale: .62 }, "mobile-landscape": { width: 844, height: 390, scale: .72 }, tablet: { width: 1024, height: 768, scale: .62 }, desktop: { width: 1440, height: 900, scale: .48 } };
+  const frame = frames[platform];
+  const asideSpan = layout.columns > 6 ? 3 : 1;
+  const style = { "--layout-width": `${frame.width}px`, "--layout-height": `${frame.height}px`, "--layout-scale": frame.scale, "--layout-columns": layout.columns, "--layout-aside-span": asideSpan, "--layout-main-span": Math.max(1, layout.columns - asideSpan), "--layout-margin": `${layout.margin}px`, "--layout-gutter": `${layout.gutter}px`, "--layout-rhythm": `${layout.verticalRhythmUnit}px`, "--layout-max": `${Math.min(layout.maxWidth, frame.width - layout.margin * 2)}px`, "--layout-space": responsive.spacing, "--layout-type": responsive.typography } as CSSProperties;
+  return <Card className="layout-rhythm-preview"><SectionHeading level={2} title="Preview de layout y ritmo" description="El frame usa las proporciones, columnas, margen, gutter, ancho máximo y multiplicadores reales de la plataforma seleccionada." action={<div className="layout-preview-toggles"><Switch checked={showColumns} onCheckedChange={setShowColumns} ariaLabel="Mostrar columnas" label="Mostrar columnas" /><Switch checked={showRhythm} disabled={!layout.verticalRhythmEnabled} onCheckedChange={setShowRhythm} ariaLabel="Mostrar ritmo vertical" label="Mostrar ritmo vertical" /></div>} /><div className="layout-preview-summary"><b>{project.platforms[platform].name}</b><span>{frame.width}×{frame.height}</span><span>{layout.columns} columnas</span><span>Margen {layout.margin}px</span><span>Gutter {layout.gutter}px</span><span>Máximo {layout.maxWidth}px</span><span>Tipo {responsive.typography}×</span><span>Espacio {responsive.spacing}×</span></div><div className={`layout-preview-stage ${showColumns ? "show-columns" : ""} ${showRhythm && layout.verticalRhythmEnabled ? "show-rhythm" : ""}`} style={style}><div className="layout-actual-frame"><header><span>Panel</span><small>{project.platforms[platform].name}</small></header><div className="layout-grid-canvas"><div className="layout-grid-overlay">{Array.from({ length: layout.columns }).map((_, index) => <i key={index} />)}</div><div className="layout-preview-sidebar" aria-hidden="true"><span /><span /><span /></div><div className="layout-preview-main"><div className="layout-preview-hero"><b>Contenido principal</b><span>Composición alineada a la grilla configurada.</span></div><div className="layout-preview-cards"><span /><span /><span /></div></div></div></div></div></Card>;
 }
 
 function ScalesView({ project, update, initialPlatform }: { project: DesignSystemProject; update: (recipe: (current: DesignSystemProject) => DesignSystemProject) => void; initialPlatform?: PlatformId }) {
@@ -174,48 +205,125 @@ function ScalesView({ project, update, initialPlatform }: { project: DesignSyste
   return <div className="view-stack">
     <SectionHeading title="Escalas, layout y grilla" description="Primero decidí herencia y multiplicadores; después ajustá la grilla y los tokens espaciales." />
     <Card><SectionHeading level={2} title="Herencia responsiva" description="Cada plataforma parte de Mobile y guarda solo los overrides necesarios." /><div className="layout-decision-grid"><Select label="Plataforma" value={platform} onValueChange={(value) => setPlatform(value as PlatformId)} options={enabled.map((id) => ({ value: id, label: project.platforms[id].name, meta: id === "mobile" ? "Base" : "Hereda de Mobile" }))} /><Select label="Preset contextual" value="manual" onValueChange={applyPreset} options={scalePresetOptions} /><Input label="Tipografía" type="number" step=".025" value={scale.typography} suffix="×" onChange={(event) => updateScale("typography", Number(event.target.value))} /><Input label="Espaciado" type="number" step=".05" value={scale.spacing} suffix="×" onChange={(event) => updateScale("spacing", Number(event.target.value))} /><Input label="Dimensiones" type="number" step=".05" value={scale.dimensions} suffix="×" onChange={(event) => updateScale("dimensions", Number(event.target.value))} /></div>{platform !== "mobile" ? <div className={`platform-review-v4 ${project.platforms[platform].proposalPending ? "is-pending" : "is-valid"}`}><div><Badge tone={project.platforms[platform].proposalPending ? "warning" : "success"}>{project.platforms[platform].proposalPending ? "Revisión pendiente" : "Layout validado"}</Badge><strong>{project.platforms[platform].name}</strong><p>{project.platforms[platform].proposalPending ? "Revisá los multiplicadores, la grilla y el frame. Los cambios se guardan, pero la advertencia solo se resuelve al confirmar esta revisión." : "La propuesta fue revisada. Podés reabrirla si necesitás volver a evaluar sus overrides."}</p></div><Button variant={project.platforms[platform].proposalPending ? "primary" : "quiet"} onClick={() => setReviewState(!project.platforms[platform].proposalPending)}>{project.platforms[platform].proposalPending ? `Marcar ${project.platforms[platform].name} como validada` : "Reabrir revisión"}</Button></div> : null}</Card>
-    <Card><SectionHeading level={2} title="Configuración de layout" description="Columnas, márgenes y gutters definen la estructura. El ancho máximo evita que pantallas amplias escalen sin control." /><div className="layout-inputs-v4"><Input label="Columnas" type="number" value={layout.columns} onChange={(event) => setLayout("columns", Number(event.target.value))} /><Input label="Margen" type="number" value={layout.margin} suffix="px" onChange={(event) => setLayout("margin", Number(event.target.value))} /><Input label="Separación entre columnas" type="number" value={layout.gutter} suffix="px" onChange={(event) => setLayout("gutter", Number(event.target.value))} /><Input label="Ancho máximo de contenido" type="number" value={layout.maxWidth} suffix="px" onChange={(event) => setLayout("maxWidth", Number(event.target.value))} /><Input label="Punto de quiebre" type="number" value={layout.breakpoint} suffix="px" onChange={(event) => setLayout("breakpoint", Number(event.target.value))} /><div className="baseline-field"><span className="ui-field-label">Grilla de línea base</span><Switch checked={layout.baselineEnabled} onCheckedChange={(checked) => setLayout("baselineEnabled", checked)} ariaLabel="Grilla de línea base" /><small>Alinea el ritmo vertical del contenido en múltiplos regulares.</small></div></div></Card>
-    <Card><SectionHeading level={2} title="Preview de layout" description="Frames proporcionales con columnas superpuestas. Mobile se representa como teléfono vertical." /><div className="layout-previews-v4">{enabled.filter((id) => id !== "mobile-landscape").map((id) => <LayoutPreview key={id} project={project} platform={id} />)}</div></Card>
+    <Card><SectionHeading level={2} title="Configuración de layout" description="Columnas, márgenes y gutters definen la estructura. El ancho máximo evita que pantallas amplias escalen sin control." /><div className="layout-inputs-v4"><Input label="Columnas" type="number" value={layout.columns} onChange={(event) => setLayout("columns", Number(event.target.value))} /><Input label="Margen" type="number" value={layout.margin} suffix="px" onChange={(event) => setLayout("margin", Number(event.target.value))} /><Input label="Separación entre columnas" type="number" value={layout.gutter} suffix="px" onChange={(event) => setLayout("gutter", Number(event.target.value))} /><Input label="Ancho máximo de contenido" type="number" value={layout.maxWidth} suffix="px" onChange={(event) => setLayout("maxWidth", Number(event.target.value))} /><Input label="Punto de quiebre" type="number" value={layout.breakpoint} suffix="px" onChange={(event) => setLayout("breakpoint", Number(event.target.value))} /><div className="baseline-field"><span className="ui-field-label">Ritmo vertical avanzado</span><Switch checked={layout.verticalRhythmEnabled} onCheckedChange={(checked) => setLayout("verticalRhythmEnabled", checked)} ariaLabel="Incluir ritmo vertical" label="Incluir ritmo vertical" /><small>Agrega una regla de validación; no redondea ni modifica tus valores.</small></div><Input label="Unidad de ritmo" type="number" value={layout.verticalRhythmUnit} suffix="px" disabled={!layout.verticalRhythmEnabled} onChange={(event) => setLayout("verticalRhythmUnit", Number(event.target.value))} /></div></Card>
+    <LayoutRhythmPreview project={project} platform={platform} />
     <Card className="primitive-scales-card"><SectionHeading level={2} title="Escalas primitivas" description="Valores reutilizables para espaciado, dimensiones, radios, bordes, sombras y opacidad." /><Tabs value={group} onValueChange={(value) => setGroup(value as ScaleGroupKey)} ariaLabel="Grupos de escala" tabs={(Object.keys(scaleLabels) as ScaleGroupKey[]).map((id) => ({ value: id, label: scaleLabels[id] }))} /><div className="scale-list-v4">{project.foundations.scales[group].map((token) => <div key={token.id}><Input label="Nombre" value={token.name} onChange={(event) => update((current) => ({ ...current, foundations: { ...current.foundations, scales: { ...current.foundations.scales, [group]: current.foundations.scales[group].map((item) => item.id === token.id ? { ...item, name: event.target.value } : item) } } }))} /><Input label="Valor" value={token.value.replace("px", "")} suffix={token.value.includes("px") ? "px" : undefined} onChange={(event) => update((current) => ({ ...current, foundations: { ...current.foundations, scales: { ...current.foundations.scales, [group]: current.foundations.scales[group].map((item) => item.id === token.id ? { ...item, value: `${event.target.value}${token.value.includes("px") ? "px" : ""}` } : item) } } }))} /></div>)}</div></Card>
-    <FoundationPreview project={project} focus="layout" />
     <Card><SectionHeading level={2} title="Foundations personalizados" description="Sección avanzada y opcional para capas, iconos, motion u otras reglas del cliente no cubiertas por las categorías principales." /><Button onClick={() => update((current) => ({ ...current, foundations: { ...current.foundations, customFoundations: [...current.foundations.customFoundations, { id: uid(), name: "Nueva foundation", description: "Necesidad específica del cliente", tokens: [] }] } }))}>Agregar foundation personalizada</Button></Card>
   </div>;
 }
 
+type DeleteTarget = { kind: "component" | "variant" | "token"; id: string };
 function TokensView({ project, update, selected, layer }: { project: DesignSystemProject; update: (recipe: (current: DesignSystemProject) => DesignSystemProject) => void; selected: string; layer: "semantic" | "component" }) {
   const [query, setQuery] = useState(selected);
   const [theme, setTheme] = useState(project.themes[0]?.id || "light");
   const [platform, setPlatform] = useState<PlatformId>(platformOrder.find((id) => project.platforms[id].enabled) || "mobile");
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(() => new Set());
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>();
+  const [replacementId, setReplacementId] = useState("");
   const refs = allColorReferences(project);
   const enabled = platformOrder.filter((id) => project.platforms[id].enabled);
   const semanticRows = project.semanticTokens.filter((token) => `${semanticRoles[token.id] || token.description} ${token.name} ${token.category}`.toLowerCase().includes(query.toLowerCase()));
-  const componentRows = project.componentTokens.filter((token) => `${token.name} ${token.component} ${token.description}`.toLowerCase().includes(query.toLowerCase()));
   const semanticOptions = project.semanticTokens.map((token) => ({ value: `semantic:${token.id}`, label: token.name, meta: token.category }));
-  const primitiveOptions = (Object.keys(project.foundations.scales) as ScaleGroupKey[]).flatMap((group) => project.foundations.scales[group].map((token) => ({ value: `primitive:${group}.${token.name}`, label: `${group}.${token.name}`, meta: "Foundation" })));
-  const componentGroups = Array.from(componentRows.reduce((groups, token) => {
-    const key = token.component.trim().toLocaleLowerCase();
-    const current = groups.get(key) || { label: token.component.charAt(0).toUpperCase() + token.component.slice(1), tokens: [] as typeof componentRows };
-    current.tokens.push(token);
-    groups.set(key, current);
-    return groups;
-  }, new Map<string, { label: string; tokens: typeof componentRows }>()));
-  const toggleComponent = (component: string) => setExpandedComponents((current) => {
-    const next = new Set(current);
-    if (next.has(component)) next.delete(component); else next.add(component);
-    return next;
-  });
-  const addComponentToken = () => {
-    setQuery("");
-    setExpandedComponents((current) => new Set([...current, "nuevo componente"]));
-    update((current) => ({ ...current, componentTokens: [...current.componentTokens, { id: uid(), name: "component.new.token", component: "Nuevo componente", reference: semanticOptions[0]?.value || primitiveOptions[0]?.value || "", platformRefs: {}, description: "Nueva decisión de componente" }] }));
+  const primitiveOptions = (Object.keys(project.foundations.scales) as ScaleGroupKey[]).flatMap((group) => project.foundations.scales[group].map((token) => ({ value: `primitive:${group}.${token.name}`, label: `${group}.${token.name}`, meta: scaleLabels[group] })));
+  const typographyFamilyOptions = project.foundations.typography.families.map((family) => ({ value: `typography:${family.id}`, label: family.family, meta: "Familia tipográfica" }));
+  const fontWeightOptions = [...new Set(project.foundations.typography.families.flatMap((family) => family.availableWeights))].sort((a, b) => a - b).map((weight) => ({ value: `fontWeight:${weight}`, label: String(weight), meta: "Peso tipográfico" }));
+  const customOptions = project.foundations.customFoundations.flatMap((group) => group.tokens.map((token) => ({ value: `custom:${group.id}:${token.id}`, label: `${group.name}.${token.name}`, meta: group.name })));
+  const referenceOptionsForType = (type: TokenValueType) => {
+    if (type === "color") return semanticOptions;
+    if (type === "fontFamily") return typographyFamilyOptions;
+    if (type === "fontWeight") return fontWeightOptions;
+    const groups: Partial<Record<TokenValueType, ScaleGroupKey[]>> = { dimension: ["spacing", "dimensions", "radii", "borders"], shadow: ["shadows"], opacity: ["opacity"], number: ["opacity"] };
+    const allowed = groups[type];
+    const primitives = allowed ? primitiveOptions.filter((option) => allowed.some((group) => option.value.startsWith(`primitive:${group}.`))) : [];
+    return [...primitives, ...customOptions];
   };
-  const componentTable = (tokens: typeof componentRows) => <Table className="component-token-table"><thead><tr><th>Rol</th><th>Identificador técnico</th><th>Foundation o referencia</th><th>Valor resuelto</th><th>Modo</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{tokens.map((token) => { const resolved = resolveComponent(project, token.id, theme, platform); return <tr key={token.id} className={query && token.name.includes(query) ? "selected-row" : ""}><td><b>{token.description}</b><small>{token.component}</small></td><td><Input value={token.name} aria-label="Identificador técnico" onChange={(event) => update((current) => ({ ...current, componentTokens: current.componentTokens.map((item) => item.id === token.id ? { ...item, name: event.target.value } : item) }))} /></td><td><Select value={token.reference} onValueChange={(value) => update((current) => ({ ...current, componentTokens: current.componentTokens.map((item) => item.id === token.id ? { ...item, reference: value } : item) }))} options={[...semanticOptions, ...primitiveOptions]} /></td><td><span className="resolved-value"><i style={{ background: resolved }} /><code>{resolved || "Pendiente"}</code></span></td><td>{project.themes.find((item) => item.id === theme)?.name}</td><td><Badge tone={resolved ? "success" : "warning"}>{resolved ? "Conectado" : "Pendiente"}</Badge></td><td><IconButton label={`Eliminar ${token.name}`} onClick={() => update((current) => ({ ...current, componentTokens: current.componentTokens.filter((item) => item.id !== token.id) }))}><X /></IconButton></td></tr>; })}</tbody></Table>;
+  const visibleComponents = project.components.filter((component) => {
+    const variants = project.componentVariants.filter((variant) => variant.componentId === component.id);
+    const tokens = project.componentTokens.filter((token) => token.componentId === component.id);
+    return `${component.name} ${component.key} ${variants.map((variant) => `${variant.name} ${variant.key}`).join(" ")} ${tokens.map((token) => `${token.name} ${token.state} ${token.property}`).join(" ")}`.toLowerCase().includes(query.toLowerCase());
+  });
+  const toggleComponent = (id: string) => setExpandedComponents((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const addComponent = () => update((current) => {
+    const count = current.components.filter((item) => item.source === "custom").length + 1;
+    let key = componentKey(`custom-${count}`); let suffix = 2; while (current.components.some((item) => item.key === key)) key = `custom-${count}-${suffix++}`;
+    const component: ProjectComponentDefinition = { id: `component-${uid()}`, key, name: `Componente personalizado ${count}`, description: "Componente exportable definido por el proyecto", source: "custom" };
+    const variant: ComponentVariant = { id: `variant-${uid()}`, key: "default", componentId: component.id, name: "Default", description: "Variante inicial", visibleInCatalog: false };
+    setExpandedComponents((expanded) => new Set([...expanded, component.id]));
+    return { ...current, components: [...current.components, component], componentVariants: [...current.componentVariants, variant] };
+  });
+  const addVariant = (component: ProjectComponentDefinition) => update((current) => {
+    const siblings = current.componentVariants.filter((item) => item.componentId === component.id);
+    let key = `variant-${siblings.length + 1}`; let suffix = 2; while (siblings.some((item) => item.key === key)) key = `variant-${siblings.length + 1}-${suffix++}`;
+    const variant: ComponentVariant = { id: `variant-${uid()}`, key, componentId: component.id, name: `Variante ${siblings.length + 1}`, description: "Variante personalizada", inheritsFrom: siblings[0]?.id, visibleInCatalog: Boolean(component.rendererKey) };
+    return { ...current, componentVariants: [...current.componentVariants, variant] };
+  });
+  const duplicateVariant = (component: ProjectComponentDefinition, source: ComponentVariant) => update((current) => {
+    const siblings = current.componentVariants.filter((item) => item.componentId === component.id);
+    let key = `${source.key}-copy`; let suffix = 2; while (siblings.some((item) => item.key === key)) key = `${source.key}-copy-${suffix++}`;
+    const variant: ComponentVariant = { ...source, id: `variant-${uid()}`, key, name: `${source.name} copia`, inheritsFrom: source.id };
+    const tokens = current.componentTokens.filter((token) => token.variantId === source.id).map((token) => {
+      const copy = { ...token, id: `component-token-${uid()}`, variantId: variant.id };
+      return { ...copy, key: `${component.key}.${variant.key}.${copy.state}.${copy.property}` };
+    });
+    return { ...current, componentVariants: [...current.componentVariants, variant], componentTokens: [...current.componentTokens, ...tokens] };
+  });
+  const addToken = (component: ProjectComponentDefinition, variant: ComponentVariant) => update((current) => {
+    const siblings = current.componentTokens.filter((item) => item.variantId === variant.id);
+    let property = `property-${siblings.length + 1}`; let suffix = 2; while (siblings.some((item) => item.property === property && item.state === "default")) property = `property-${siblings.length + 1}-${suffix++}`;
+    const token: ComponentToken = { id: `component-token-${uid()}`, key: `${component.key}.${variant.key}.default.${property}`, name: `Token ${siblings.length + 1}`, componentId: component.id, variantId: variant.id, state: "default", property, valueType: "color", reference: semanticOptions[0]?.value || primitiveOptions[0]?.value || "", platformRefs: {}, description: "Decisión de componente" };
+    return { ...current, componentTokens: [...current.componentTokens, token] };
+  });
+  const duplicateToken = (component: ProjectComponentDefinition, variant: ComponentVariant, source: ComponentToken) => update((current) => {
+    const siblings = current.componentTokens.filter((item) => item.variantId === variant.id && item.state === source.state);
+    let property = `${source.property}-copy`; let suffix = 2; while (siblings.some((item) => item.property === property)) property = `${source.property}-copy-${suffix++}`;
+    const token: ComponentToken = { ...source, id: `component-token-${uid()}`, key: `${component.key}.${variant.key}.${source.state}.${property}`, name: `${source.name} copia`, property };
+    return { ...current, componentTokens: [...current.componentTokens, token] };
+  });
+  const updateToken = (id: string, patch: Partial<ComponentToken>) => update((current) => ({ ...current, componentTokens: current.componentTokens.map((token) => token.id === id ? { ...token, ...patch, key: componentTokenPath(current, { ...token, ...patch }) } : token) }));
+  const updateTokenType = (token: ComponentToken, valueType: TokenValueType) => {
+    const compatible = referenceOptionsForType(valueType);
+    updateToken(token.id, { valueType, reference: compatible.some((option) => option.value === token.reference) ? token.reference : compatible[0]?.value || "" });
+  };
+  const beginDelete = (target: DeleteTarget) => { setDeleteTarget(target); setReplacementId(""); };
+  const targetComponent = deleteTarget?.kind === "component" ? project.components.find((item) => item.id === deleteTarget.id) : undefined;
+  const targetVariant = deleteTarget?.kind === "variant" ? project.componentVariants.find((item) => item.id === deleteTarget.id) : undefined;
+  const targetToken = deleteTarget?.kind === "token" ? project.componentTokens.find((item) => item.id === deleteTarget.id) : undefined;
+  const dependencyLabels = deleteTarget?.kind === "component" ? [...project.componentVariants.filter((item) => item.componentId === deleteTarget.id).map((item) => `Variante · ${item.name}`), ...project.componentTokens.filter((item) => item.componentId === deleteTarget.id).map((item) => `Token · ${componentTokenPath(project, item)}`)] : deleteTarget?.kind === "variant" ? [...project.componentVariants.filter((item) => item.inheritsFrom === deleteTarget.id).map((item) => `Herencia · ${item.name}`), ...project.componentTokens.filter((item) => item.variantId === deleteTarget.id).map((item) => `Token · ${componentTokenPath(project, item)}`)] : [];
+  const replacementOptions = deleteTarget?.kind === "component" ? project.components.filter((item) => item.id !== deleteTarget.id).map((item) => ({ value: item.id, label: item.name, meta: item.rendererKey === targetComponent?.rendererKey ? `${item.key} · renderer compatible` : item.key })) : deleteTarget?.kind === "variant" ? project.componentVariants.filter((item) => item.id !== deleteTarget.id && item.componentId === targetVariant?.componentId && !variantInheritanceWouldCycle(project, item.id, targetVariant?.id)).map((item) => ({ value: item.id, label: item.name, meta: item.key })) : project.componentTokens.filter((item) => item.id !== deleteTarget?.id && item.valueType === targetToken?.valueType).map((item) => ({ value: item.id, label: item.name, meta: componentTokenPath(project, item) }));
+  const executeDelete = (leavePending = false) => {
+    if (!deleteTarget) return;
+    update((current) => {
+      const next = structuredClone(current);
+      if (deleteTarget.kind === "token") next.componentTokens = next.componentTokens.filter((item) => item.id !== deleteTarget.id);
+      if (deleteTarget.kind === "variant") {
+        next.componentVariants = next.componentVariants.filter((item) => item.id !== deleteTarget.id).map((item) => item.inheritsFrom === deleteTarget.id && !leavePending ? { ...item, inheritsFrom: replacementId || undefined } : item);
+        if (!leavePending) next.componentTokens = replacementId ? next.componentTokens.map((item) => item.variantId === deleteTarget.id ? { ...item, variantId: replacementId } : item) : next.componentTokens.filter((item) => item.variantId !== deleteTarget.id);
+      }
+      if (deleteTarget.kind === "component") {
+        const removedVariants = next.componentVariants.filter((item) => item.componentId === deleteTarget.id);
+        next.components = next.components.filter((item) => item.id !== deleteTarget.id);
+        if (!leavePending) {
+          const replacementVariants = next.componentVariants.filter((item) => item.componentId === replacementId);
+          next.componentVariants = next.componentVariants.filter((item) => item.componentId !== deleteTarget.id);
+          next.componentTokens = replacementId ? next.componentTokens.map((item) => {
+            if (item.componentId !== deleteTarget.id) return item;
+            const oldVariant = removedVariants.find((variant) => variant.id === item.variantId);
+            const replacementVariant = replacementVariants.find((variant) => variant.key === oldVariant?.key) || replacementVariants.find((variant) => variant.key === "default") || replacementVariants[0];
+            return replacementVariant ? { ...item, componentId: replacementId, variantId: replacementVariant.id } : item;
+          }) : next.componentTokens.filter((item) => item.componentId !== deleteTarget.id);
+        }
+      }
+      return next;
+    });
+    setDeleteTarget(undefined); setReplacementId("");
+  };
+  const componentTable = (component: ProjectComponentDefinition, variant: ComponentVariant, tokens: ComponentToken[]) => <div className="variant-token-editor"><div className="variant-heading"><div><Input label="Nombre de variante" value={variant.name} onChange={(event) => update((current) => ({ ...current, componentVariants: current.componentVariants.map((item) => item.id === variant.id ? { ...item, name: event.target.value } : item) }))} /><span><small>Key estable</small><code>{component.key}.{variant.key}</code></span></div><Select label="Hereda de" value={variant.inheritsFrom || "none"} onValueChange={(value) => update((current) => ({ ...current, componentVariants: current.componentVariants.map((item) => item.id === variant.id ? { ...item, inheritsFrom: value === "none" ? undefined : value } : item) }))} options={[{ value: "none", label: "Sin herencia" }, ...project.componentVariants.filter((item) => item.componentId === component.id && item.id !== variant.id && !variantInheritanceWouldCycle(project, variant.id, item.id)).map((item) => ({ value: item.id, label: item.name, meta: item.key }))]} /><div className="variant-actions"><Button size="sm" onClick={() => addToken(component, variant)}>Agregar token</Button><IconButton label={`Duplicar variante ${variant.name}`} onClick={() => duplicateVariant(component, variant)}><Copy /></IconButton><IconButton label={`Eliminar variante ${variant.name}`} disabled={project.componentVariants.filter((item) => item.componentId === component.id).length === 1} onClick={() => beginDelete({ kind: "variant", id: variant.id })}><Trash2 /></IconButton></div></div>{tokens.length ? <Table className="component-token-table"><thead><tr><th>Token</th><th>Estado</th><th>Propiedad</th><th>Tipo</th><th>Referencia</th><th>Resuelto</th><th>Acción</th></tr></thead><tbody>{tokens.map((token) => { const resolved = resolveComponent(project, token.id, theme, platform); const compatibleReferences = referenceOptionsForType(token.valueType); const options = compatibleReferences.some((option) => option.value === token.reference) || !token.reference ? compatibleReferences : [{ value: token.reference, label: token.reference, meta: "Referencia anterior incompatible" }, ...compatibleReferences]; return <tr key={token.id} className={query && componentTokenPath(project, token).includes(query) ? "selected-row" : ""}><td><Input label={token.name} value={token.name} onChange={(event) => updateToken(token.id, { name: event.target.value, description: event.target.value })} help={componentTokenPath(project, token)} /></td><td><Input aria-label="Estado" value={token.state} onChange={(event) => updateToken(token.id, { state: tokenKey(event.target.value) })} /></td><td><Input aria-label="Propiedad" value={token.property} onChange={(event) => updateToken(token.id, { property: tokenKey(event.target.value) })} /></td><td><Select value={token.valueType} onValueChange={(value) => updateTokenType(token, value as TokenValueType)} options={["color", "dimension", "number", "fontFamily", "fontWeight", "shadow", "opacity", "duration", "easing", "string", "boolean"].map((value) => ({ value, label: value }))} /></td><td>{options.length ? <Select value={token.reference} onValueChange={(value) => updateToken(token.id, { reference: value })} options={options} /> : <span className="reference-empty">Sin foundation compatible</span>}</td><td><span className="resolved-value"><i style={{ background: token.valueType === "color" ? resolved : undefined }} /><code>{resolved || "Pendiente"}</code></span></td><td><div className="token-row-actions"><IconButton label={`Duplicar ${token.name}`} onClick={() => duplicateToken(component, variant, token)}><Copy /></IconButton><IconButton label={`Eliminar ${token.name}`} onClick={() => beginDelete({ kind: "token", id: token.id })}><X /></IconButton></div></td></tr>; })}</tbody></Table> : <Alert tone="info" title="Variante sin tokens">Agregá el primer token o conservá la variante como estructura exportable.</Alert>}</div>;
   return <div className="view-stack">
-    <SectionHeading title={layer === "semantic" ? "Tokens semánticos" : "Tokens de componente"} description={layer === "semantic" ? "Roles transversales conectados a foundations nombradas." : "Decisiones estables por componente, editables y conectadas a semántica por defecto."} action={layer === "component" ? <Button onClick={addComponentToken}>Agregar token</Button> : undefined} />
-    <Card className="token-toolbar-v4"><Input label="Buscar por rol, identificador, categoría o consumidor" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ej. error, input, surface…" /><Select label="Modo" value={theme} onValueChange={setTheme} options={project.themes.map((item) => ({ value: item.id, label: item.name }))} /><Select label="Plataforma" value={platform} onValueChange={(value) => setPlatform(value as PlatformId)} options={enabled.map((id) => ({ value: id, label: project.platforms[id].name }))} /></Card>
+    <SectionHeading title={layer === "semantic" ? "Tokens semánticos" : "Tokens de componente"} description={layer === "semantic" ? "Roles transversales conectados a foundations nombradas." : "Componentes, variantes y decisiones tipadas sin limitar el proyecto al catálogo inicial."} action={layer === "component" ? <Button onClick={addComponent}>Agregar componente</Button> : undefined} />
+    <Card className="token-toolbar-v4"><Input label="Buscar por rol, componente, variante o token" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ej. error, button, primary…" /><Select label="Modo" value={theme} onValueChange={setTheme} options={project.themes.map((item) => ({ value: item.id, label: item.name }))} /><Select label="Plataforma" value={platform} onValueChange={(value) => setPlatform(value as PlatformId)} options={enabled.map((id) => ({ value: id, label: project.platforms[id].name }))} /></Card>
     {!refs.length && layer === "semantic" ? <Alert tone="warning" title="Primero creá una foundation de color">Los roles semánticos no aceptan valores hexadecimales inline.</Alert> : null}
-    {layer === "semantic" ? <Table><thead><tr><th>Rol</th><th>Identificador técnico</th><th>Foundation o referencia</th><th>Valor resuelto</th><th>Modo</th><th>Estado</th></tr></thead><tbody>{semanticRows.map((token) => { const reference = token.platformRefs[platform] || token.themeRefs[theme] || token.defaultRef; const resolved = resolveSemantic(project, token.id, theme, platform); return <tr key={token.id} className={query && (token.name.includes(query) || token.id.includes(query)) ? "selected-row" : ""}><td><b>{semanticRoles[token.id] || token.description}</b><small>{token.category}</small></td><td><code>{token.name}</code></td><td><Select value={reference} onValueChange={(value) => update((current) => ({ ...current, semanticTokens: current.semanticTokens.map((item) => item.id === token.id ? { ...item, defaultRef: value } : item) }))} options={refs.map((ref) => ({ value: ref, label: ref }))} /></td><td><span className="resolved-value"><i style={{ background: resolved }} /><code>{resolved || "Pendiente"}</code></span></td><td>{project.themes.find((item) => item.id === theme)?.name}</td><td><Badge tone={resolved ? "success" : "warning"}>{resolved ? "Asignado" : "Pendiente"}</Badge></td></tr>; })}</tbody></Table> : <div className="component-token-groups"><div className="component-token-actions"><span>{componentGroups.length} componentes · {componentRows.length} tokens</span><div><Button size="sm" variant="quiet" onClick={() => setExpandedComponents(new Set(componentGroups.map(([key]) => key)))}>Desplegar todos</Button><Button size="sm" variant="quiet" onClick={() => setExpandedComponents(new Set())}>Contraer todos</Button></div></div>{componentGroups.map(([key, group]) => { const isExpanded = Boolean(query.trim()) || expandedComponents.has(key); return <section className={`component-token-group ${isExpanded ? "is-open" : ""}`} key={key}><button type="button" className="component-token-group-trigger" aria-expanded={isExpanded} onClick={() => toggleComponent(key)}><span><b>{group.label}</b><small>{group.tokens.length} {group.tokens.length === 1 ? "token" : "tokens"}</small></span><ChevronDownIcon aria-hidden="true" /></button>{isExpanded ? componentTable(group.tokens) : null}</section>; })}{!componentGroups.length ? <Alert tone="info" title="Sin resultados">No hay tokens de componente que coincidan con la búsqueda.</Alert> : null}</div>}
+    {layer === "semantic" ? <Table><thead><tr><th>Rol</th><th>Identificador técnico</th><th>Foundation o referencia</th><th>Valor resuelto</th><th>Modo</th><th>Estado</th></tr></thead><tbody>{semanticRows.map((token) => { const reference = token.platformRefs[platform] || token.themeRefs[theme] || token.defaultRef; const resolved = resolveSemantic(project, token.id, theme, platform); return <tr key={token.id} className={query && (token.name.includes(query) || token.id.includes(query)) ? "selected-row" : ""}><td><b>{semanticRoles[token.id] || token.description}</b><small>{token.category}</small></td><td><code>{token.name}</code></td><td><Select value={reference} onValueChange={(value) => update((current) => ({ ...current, semanticTokens: current.semanticTokens.map((item) => item.id === token.id ? { ...item, defaultRef: value } : item) }))} options={refs.map((ref) => ({ value: ref, label: ref }))} /></td><td><span className="resolved-value"><i style={{ background: resolved }} /><code>{resolved || "Pendiente"}</code></span></td><td>{project.themes.find((item) => item.id === theme)?.name}</td><td><Badge tone={resolved ? "success" : "warning"}>{resolved ? "Asignado" : "Pendiente"}</Badge></td></tr>; })}</tbody></Table> : <div className="component-token-groups"><div className="component-token-actions"><span>{project.components.length} componentes · {project.componentVariants.length} variantes · {project.componentTokens.length} tokens</span><div><Button size="sm" variant="quiet" onClick={() => setExpandedComponents(new Set(project.components.map((item) => item.id)))}>Desplegar todos</Button><Button size="sm" variant="quiet" onClick={() => setExpandedComponents(new Set())}>Contraer todos</Button></div></div>{visibleComponents.map((component) => { const variants = project.componentVariants.filter((item) => item.componentId === component.id); const tokens = project.componentTokens.filter((item) => item.componentId === component.id); const isExpanded = Boolean(query.trim()) || expandedComponents.has(component.id); return <section className={`component-token-group ${isExpanded ? "is-open" : ""}`} key={component.id}><div className="component-token-group-head"><button type="button" className="component-token-group-trigger" aria-expanded={isExpanded} onClick={() => toggleComponent(component.id)}><span><b>{component.name}</b><small>{component.key} · {variants.length} variantes · {tokens.length} tokens</small></span><ChevronDownIcon aria-hidden="true" /></button><div><Badge tone={component.rendererKey ? "success" : "neutral"}>{component.rendererKey ? "Con preview" : "Solo exportación"}</Badge><Button size="sm" onClick={() => addVariant(component)}>Agregar variante</Button><IconButton label={`Eliminar componente ${component.name}`} onClick={() => beginDelete({ kind: "component", id: component.id })}><Trash2 /></IconButton></div></div>{isExpanded ? <div className="component-variant-list"><div className="component-definition-fields"><Input label="Nombre del componente" value={component.name} onChange={(event) => update((current) => ({ ...current, components: current.components.map((item) => item.id === component.id ? { ...item, name: event.target.value } : item) }))} /><span><small>Key exportada estable</small><code>{component.key}</code></span></div>{variants.map((variant) => componentTable(component, variant, tokens.filter((token) => token.variantId === variant.id)))}</div> : null}</section>; })}{!visibleComponents.length ? <Alert tone="info" title="Sin resultados">No hay componentes, variantes o tokens que coincidan con la búsqueda.</Alert> : null}</div>}
+    <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(undefined); }} title={`Eliminar ${deleteTarget?.kind === "component" ? targetComponent?.name || "componente" : deleteTarget?.kind === "variant" ? targetVariant?.name || "variante" : targetToken?.name || "token"}`} description="Revisá las dependencias antes de confirmar. La operación se aplica completa o no se aplica.">{dependencyLabels.length ? <><Alert tone="warning" title={`${dependencyLabels.length} dependencias afectadas`}><ul>{dependencyLabels.map((label) => <li key={label}>{label}</li>)}</ul></Alert>{replacementOptions.length ? <Select label="Reemplazar por" value={replacementId} onValueChange={setReplacementId} placeholder="Elegir referencia compatible" options={replacementOptions} /> : <Alert tone="info" title="Sin reemplazo compatible">Podés cancelar o eliminar dejando las referencias pendientes cuando corresponda.</Alert>}</> : <Alert tone="info" title="Sin dependencias">La eliminación no afecta otras decisiones del proyecto.</Alert>}<div className="delete-dialog-actions"><Button onClick={() => setDeleteTarget(undefined)}>Cancelar</Button>{dependencyLabels.length ? <Button variant="danger" onClick={() => executeDelete(true)}>Eliminar y dejar pendientes</Button> : null}<Button variant="danger" disabled={dependencyLabels.length > 0 && !replacementId} onClick={() => executeDelete(false)}>{dependencyLabels.length ? "Reemplazar y eliminar" : "Eliminar"}</Button></div></Dialog>
   </div>;
 }
 
@@ -223,11 +331,17 @@ function ExportPanel({ project, open, onClose, notice }: { project: DesignSystem
   const [categories, setCategories] = useState<ExportCategory[]>(exportOptions.map((item) => item.value));
   const [format, setFormat] = useState("json");
   const [theme, setTheme] = useState("all");
-  const [platform, setPlatform] = useState("all");
+  const [platforms, setPlatforms] = useState<PlatformId[]>(() => platformOrder.filter((id) => project.platforms[id].enabled));
   const [figmaTarget, setFigmaTarget] = useState("");
   const [figmaConflictPolicy, setFigmaConflictPolicy] = useState<FigmaConflictPolicy>("review");
   const [figmaDryRun, setFigmaDryRun] = useState(true);
-  const snapshot = () => { const clone = structuredClone(project); if (theme !== "all") clone.themes = clone.themes.filter((item) => item.id === theme); if (platform !== "all") platformOrder.forEach((id) => { clone.platforms[id].enabled = id === platform; }); return clone; };
+  const inactiveSelected = platforms.filter((id) => !project.platforms[id].enabled);
+  const snapshot = () => {
+    const clone = structuredClone(project);
+    if (theme !== "all") clone.themes = clone.themes.filter((item) => item.id === theme);
+    platformOrder.forEach((id) => { clone.platforms[id].includedWhileInactive = platforms.includes(id) && !project.platforms[id].enabled; clone.platforms[id].enabled = platforms.includes(id); });
+    return clone;
+  };
   const exportTokens = () => {
     const scoped = snapshot();
     if (format === "figma-mcp") {
@@ -239,7 +353,22 @@ function ExportPanel({ project, open, onClose, notice }: { project: DesignSystem
     downloadText(projectFilename(project, format === "json" ? "-tokens.json" : "-tokens.css"), format === "json" ? JSON.stringify(buildTokenSubset(scoped, categories), null, 2) : buildCss(scoped, categories), format === "json" ? "application/json" : "text/css");
     notice("Exportación generada");
   };
-  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }} title="Configurar exportación" description="Elegí contenido, destino y alcance. Podés cerrar y volver para crear exportaciones secuenciales." variant="drawer" className="export-panel-v4"><Card><SectionHeading level={2} title="Contenido" /><div className="export-checks">{exportOptions.map((option) => <Checkbox key={option.value} checked={categories.includes(option.value)} onCheckedChange={(checked) => setCategories((current) => checked ? [...current, option.value] : current.filter((item) => item !== option.value))} label={option.label} />)}</div></Card><Card><SectionHeading level={2} title="Destino y alcance" /><RadioGroup value={format} onValueChange={setFormat} options={[{ value: "json", label: "JSON para Figma y desarrollo" }, { value: "css", label: "Variables CSS" }, { value: "figma-mcp", label: "Paquete para GPT + Figma MCP", meta: "Manifiesto, validación y plan de ejecución en un archivo" }]} /><div className="export-format-stack">{format === "figma-mcp" ? <div className="figma-mcp-config"><Alert tone="info" title="Ejecución asistida, no automática">El paquete obliga al agente a inspeccionar el archivo, mostrar un dry-run y confirmar conflictos antes de escribir. La capacidad de escritura depende del cliente MCP y de tus permisos en Figma.</Alert><Input label="Archivo Figma Design (opcional)" value={figmaTarget} onChange={(event) => setFigmaTarget(event.target.value)} placeholder="https://www.figma.com/design/…" help="Podés dejarlo vacío y confirmarlo en el chat antes de ejecutar." /><Select label="Si una variable ya existe" value={figmaConflictPolicy} onValueChange={(value) => setFigmaConflictPolicy(value as FigmaConflictPolicy)} options={[{ value: "review", label: "Revisar antes de cambiar", meta: "Recomendado" }, { value: "update-by-name", label: "Actualizar por nombre" }, { value: "skip-existing", label: "Omitir existentes" }]} /><Checkbox checked={figmaDryRun} onCheckedChange={setFigmaDryRun} label="Solicitar simulación y resumen antes de escribir" /></div> : <div className="form-grid"><Select label="Modo" value={theme} onValueChange={setTheme} options={[{ value: "all", label: "Todos los modos" }, ...project.themes.map((item) => ({ value: item.id, label: item.name }))]} /><Select label="Plataforma" value={platform} onValueChange={setPlatform} options={[{ value: "all", label: "Todas las plataformas" }, ...platformOrder.filter((id) => project.platforms[id].enabled).map((id) => ({ value: id, label: project.platforms[id].name }))]} /></div>}<Button variant="primary" size="lg" disabled={!categories.length} onClick={exportTokens}>{format === "figma-mcp" ? "Descargar paquete MCP" : "Exportar selección"}</Button></div></Card><Card><SectionHeading level={2} title="Otras salidas" description="El archivo editable y el sitio de documentación son salidas separadas." /><div className="export-actions-v4"><Button onClick={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))}>Descargar proyecto editable</Button><Button onClick={() => downloadText(projectFilename(project, "-docs.html"), buildDocumentation(project), "text/html")}>Descargar documentación HTML</Button></div></Card></Dialog>;
+  const togglePlatform = (id: PlatformId, checked: boolean) => setPlatforms((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id));
+  const activePlatforms = platformOrder.filter((id) => project.platforms[id].enabled);
+  const inactivePlatforms = platformOrder.filter((id) => !project.platforms[id].enabled);
+  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }} title="Configurar exportación" description="Elegí contenido, destino y alcance. Podés crear exportaciones secuenciales sin perder la configuración." variant="drawer" className="export-panel-v4">
+    <Card><SectionHeading level={2} title="Contenido" /><div className="export-checks">{exportOptions.map((option) => <Checkbox key={option.value} checked={categories.includes(option.value)} onCheckedChange={(checked) => setCategories((current) => checked ? [...current, option.value] : current.filter((item) => item !== option.value))} label={option.label} />)}</div></Card>
+    {expandExportCategories(categories).length > categories.length ? <Alert tone="info" title="Dependencias incluidas automáticamente">La salida agregará las foundations y referencias necesarias para evitar aliases rotos, aunque no estén marcadas como categorías principales.</Alert> : null}
+    <Card><SectionHeading level={2} title="Destino y alcance" /><RadioGroup value={format} onValueChange={setFormat} options={[{ value: "json", label: "JSON para Figma y desarrollo" }, { value: "css", label: "Variables CSS" }, { value: "figma-mcp", label: "Paquete para GPT + Figma MCP", meta: "Manifiesto, validación y plan de ejecución en un archivo" }]} /><div className="export-format-stack">
+      <Select label="Modo" value={theme} onValueChange={setTheme} options={[{ value: "all", label: "Todos los modos" }, ...project.themes.map((item) => ({ value: item.id, label: item.name }))]} />
+      <fieldset className="export-platform-scope"><legend>Plataformas activas</legend>{activePlatforms.map((id) => <Checkbox key={id} checked={platforms.includes(id)} onCheckedChange={(checked) => togglePlatform(id, checked)} label={project.platforms[id].name} />)}</fieldset>
+      {inactivePlatforms.length ? <fieldset className="export-platform-scope inactive"><legend>Plataformas desactivadas</legend>{inactivePlatforms.map((id) => <div key={id}><Checkbox checked={platforms.includes(id)} onCheckedChange={(checked) => togglePlatform(id, checked)} label={project.platforms[id].name} /><small>Desactivada en Proyecto · conserva configuración · {Object.keys(project.platforms[id].overrides).length || Object.keys(project.platforms[id].scaleOverrides).length ? "Con overrides" : "Hereda de Mobile"}</small></div>)}</fieldset> : null}
+      {inactiveSelected.length ? <Alert tone="warning" title="Incluiste plataformas desactivadas">Se validarán únicamente para esta salida y quedarán marcadas en el manifiesto, sin alterar la Salud general del proyecto.</Alert> : null}
+      {format === "figma-mcp" ? <div className="figma-mcp-config"><Alert tone="info" title="Ejecución asistida, no automática">El paquete obliga al agente a inspeccionar el archivo, mostrar un dry-run y confirmar conflictos antes de escribir.</Alert><Input label="Archivo Figma Design (opcional)" value={figmaTarget} onChange={(event) => setFigmaTarget(event.target.value)} placeholder="https://www.figma.com/design/…" help="Podés dejarlo vacío y confirmarlo en el chat antes de ejecutar." /><Select label="Si una variable ya existe" value={figmaConflictPolicy} onValueChange={(value) => setFigmaConflictPolicy(value as FigmaConflictPolicy)} options={[{ value: "review", label: "Revisar antes de cambiar", meta: "Recomendado" }, { value: "update-by-name", label: "Actualizar por nombre" }, { value: "skip-existing", label: "Omitir existentes" }]} /><Checkbox checked={figmaDryRun} onCheckedChange={setFigmaDryRun} label="Solicitar simulación y resumen antes de escribir" /></div> : null}
+      <Button variant="primary" size="lg" disabled={!categories.length || !platforms.length} onClick={exportTokens}>{format === "figma-mcp" ? "Descargar paquete MCP" : "Exportar selección"}</Button>
+    </div></Card>
+    <Card><SectionHeading level={2} title="Otras salidas" description="El archivo editable conserva siempre todas las plataformas y el sitio HTML documenta el alcance elegido del proyecto." /><div className="export-actions-v4"><Button onClick={() => downloadText(projectFilename(project, ".dslab.json"), JSON.stringify(project, null, 2))}>Descargar proyecto editable</Button><Button onClick={() => downloadText(projectFilename(project, "-docs.html"), buildDocumentation(project), "text/html")}>Descargar documentación HTML</Button></div></Card>
+  </Dialog>;
 }
 
 export default function Home() {
@@ -301,10 +430,10 @@ export default function Home() {
   }, [active, section]);
   useEffect(() => { const id = "project-google-font"; document.getElementById(id)?.remove(); const googleFamilies = projectTypography.families.filter((family) => family.source === "google"); if (!googleFamilies.length) return; const link = document.createElement("link"); link.id = id; link.rel = "stylesheet"; link.href = `https://fonts.googleapis.com/css2?${googleFamilies.map((family) => `family=${encodeURIComponent(family.family).replaceAll("%20", "+")}:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400`).join("&")}&display=swap`; document.head.appendChild(link); return () => link.remove(); }, [projectTypography.families]);
   const health = useMemo(() => analyzeProject(project), [project]);
-  const flash = (message: string) => {
+  const flash = (message: string, duration = 2400) => {
     if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
     setNotice({ message, tone: "success" });
-    noticeTimerRef.current = window.setTimeout(() => setNotice(undefined), 2400);
+    noticeTimerRef.current = window.setTimeout(() => setNotice(undefined), duration);
   };
   const showImportError = (message: string) => {
     if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
@@ -332,7 +461,7 @@ export default function Home() {
     if (section === "components") return <TokensView key={`component-${selectedToken}`} project={project} update={update} selected={selectedToken} layer="component" />;
     if (section === "catalog") return <Catalog project={project} onOpenTokens={openTokens} />;
     if (section === "scenarios") return <ScenarioExplorer key={`scenario-${scenarioTarget || "all"}`} project={project} initialComponent={scenarioTarget} />;
-    return <HealthView project={project} onOpenTokens={openTokens} onOpenCatalog={() => navigateTo("catalog")} onOpenScenarios={(component) => { setScenarioTarget(component || ""); navigateTo("scenarios"); }} onOpenFinding={openFinding} />;
+    return <HealthView project={project} onOpenTokens={openTokens} onOpenCatalog={() => navigateTo("catalog")} onOpenScenarios={(component) => { setScenarioTarget(component || ""); navigateTo("scenarios"); }} onOpenProject={() => setProjectOpen(true)} onOpenFinding={openFinding} />;
   };
   const navigation: { id: MainSection; label: string; icon: React.ReactNode; group?: string }[] = [
     { id: "colors", label: "Color", icon: <PaintBucket />, group: "Foundations" },
@@ -356,8 +485,8 @@ export default function Home() {
     />
     <input ref={importRef} hidden type="file" accept=".json,.dslab.json" onChange={importProject} />
     <div className="workspace-v4"><aside ref={navigationRef} className="sidebar-v4"><nav aria-label="Navegación principal">{navigation.map((item) => <div key={item.id}>{item.group ? <span className="sidebar-group">{item.group}</span> : null}<button className={section === item.id ? "active" : ""} aria-current={section === item.id ? "page" : undefined} onClick={() => { if (item.id === "scales") setScaleTarget(undefined); navigateTo(item.id); }}>{item.icon}<span>{item.label}</span></button></div>)}</nav></aside><main ref={mainRef} id="lab-main" className="main-v4">{renderMain()}</main></div>
-    <Dialog open={projectOpen} onOpenChange={setProjectOpen} title="Configuración del proyecto" description="Editá la identidad y el alcance de plataformas sin salir de tu tarea actual."><ProjectView project={project} update={update} embedded /></Dialog>
-    <ExportPanel project={project} open={exportOpen} onClose={() => setExportOpen(false)} notice={flash} />
+    {projectOpen ? <ProjectSettingsDialog project={project} open onClose={() => setProjectOpen(false)} onApply={setProject} notice={(message) => flash(message, 4000)} error={showImportError} /> : null}
+    {exportOpen ? <ExportPanel project={project} open onClose={() => setExportOpen(false)} notice={flash} /> : null}
     {notice?.tone === "success" ? <div className="toast-v4" role="status" aria-live="polite">{notice.message}</div> : null}
     {notice?.tone === "error" ? <div className="import-error-v4" role="alert" aria-live="assertive"><div><b>No se pudo importar el proyecto</b><p>{notice.message}</p></div><Button onClick={() => importRef.current?.click()}>Elegir otro archivo</Button><IconButton label="Cerrar mensaje" onClick={() => setNotice(undefined)}><X /></IconButton></div> : null}
   </div>;

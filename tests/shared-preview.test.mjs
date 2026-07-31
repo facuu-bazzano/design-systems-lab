@@ -4,19 +4,21 @@ import test from "node:test";
 
 const projectRoot = new URL("../", import.meta.url);
 
-test("catalog documentation and functional scenarios keep separate renderers", async () => {
+test("catalog and scenarios share one canonical project renderer", async () => {
   const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
   const health = await readFile(new URL("app/components/HealthView.tsx", projectRoot), "utf8");
   const scenarios = await readFile(new URL("app/components/ScenarioExplorer.tsx", projectRoot), "utf8");
   const scenarioPreviews = await readFile(new URL("app/components/ScenarioComponentPreview.tsx", projectRoot), "utf8");
   const css = await readFile(new URL("app/globals.css", projectRoot), "utf8");
 
-  assert.match(catalog, /ProjectAlertPreview/);
-  assert.match(catalog, /export function ProjectComponentPreview/);
+  assert.match(catalog, /import \{ ProjectComponentRenderer \} from "\.\/ScenarioComponentPreview"/);
+  assert.match(catalog, /mode="playground"/);
+  assert.match(catalog, /mode="snapshot"/);
   assert.match(scenarios, /import \{ ScenarioComponentPreview \} from "\.\/ScenarioComponentPreview"/);
   assert.match(scenarios, /<ScenarioComponentPreview/);
   assert.doesNotMatch(scenarios, /ProjectComponentPreview|usefulState/);
   assert.match(scenarioPreviews, /export function ScenarioComponentPreview/);
+  assert.match(scenarioPreviews, /export function ProjectComponentRenderer/);
   assert.match(scenarioPreviews, /onCheckedChange|onValueChange|onClick/);
   assert.match(scenarioPreviews, /createPortal/);
   assert.match(health, /onOpenScenarios/);
@@ -66,7 +68,7 @@ test("the single resolver exports typography, spacing and layout variables", asy
   assert.match(resolver, /--ds-type-\$\{role\}-size/);
   assert.match(resolver, /--ds-spacing-multiplier/);
   assert.match(resolver, /--ds-columns/);
-  assert.match(resolver, /--ds-baseline/);
+  assert.match(resolver, /--ds-vertical-rhythm/);
 });
 
 test("foundation configuration views expose focused previews and scenarios are a first-class section", async () => {
@@ -75,7 +77,8 @@ test("foundation configuration views expose focused previews and scenarios are a
 
   assert.match(page, /<FoundationPreview project=\{project\} focus="color"/);
   assert.match(page, /<FoundationPreview project=\{project\} focus="typography"/);
-  assert.match(page, /<FoundationPreview project=\{project\} focus="layout"/);
+  assert.match(page, /<LayoutRhythmPreview project=\{project\} platform=\{platform\}/);
+  assert.doesNotMatch(page, /<FoundationPreview project=\{project\} focus="layout"/);
   assert.match(page, /id: "scenarios"/);
   assert.match(model, /\| "scenarios" \|/);
 });
@@ -130,4 +133,18 @@ test("the shared brand mark replaces the visible laboratory wordmark", async () 
   assert.match(layout, /prefers-color-scheme: light/);
   assert.match(layout, /prefers-color-scheme: dark/);
   assert.doesNotMatch(page, /starter-kicker[^>]*>Laboratorio de Sistemas de Dise/);
+});
+
+test("catalog states target the rendered control and variants propagate to scenarios", async () => {
+  const scenarios = await readFile(new URL("app/components/ScenarioExplorer.tsx", projectRoot), "utf8");
+  const previews = await readFile(new URL("app/components/ScenarioComponentPreview.tsx", projectRoot), "utf8");
+  const css = await readFile(new URL("app/globals.css", projectRoot), "utf8");
+
+  assert.match(previews, /mode === "snapshot"/);
+  assert.match(previews, /inert aria-label/);
+  assert.match(scenarios, /resolveVariantCssVariables/);
+  assert.match(scenarios, /Variante de|label="Variante"/);
+  assert.match(css, /\.project-snapshot\.state-hover :is\(\.project-button/);
+  assert.match(css, /\.project-snapshot\.state-focus :is\(\.project-button/);
+  assert.match(css, /\.project-snapshot\.state-checked \.project-switch/);
 });

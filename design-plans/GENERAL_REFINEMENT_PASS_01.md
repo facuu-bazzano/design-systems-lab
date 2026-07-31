@@ -630,3 +630,26 @@ El Laboratorio ofrece un ciclo coherente:
 6. resolver dependencias antes de eliminar;
 7. exportar la misma estructura a JSON, CSS, documentación HTML y Figma MCP;
 8. cerrar la tarea únicamente después de un gate de calidad reproducible.
+
+## 12. Estado de implementación — 2026-07-31
+
+Implementado en `experiment/impeccable`:
+
+- modelo serializable v5 con migración idempotente, componentes personalizados, variantes, herencia y tokens tipados;
+- configuración de Proyecto transaccional con Aplicar, Cancelar, confirmación de descarte y mensajes persistentes;
+- plataformas inactivas conservadas y disponibles como alcance opcional, nunca preseleccionadas;
+- un único preview proporcional de layout y ritmo, con columnas y ritmo vertical como overlays independientes;
+- contrato interno de iconos y controles documentado únicamente para la interfaz del Laboratorio;
+- renderer canónico del sistema generado compartido por Catálogo y Escenarios, fuera de Storybook;
+- Catálogo con playground funcional y matriz determinista de estados visualmente distinguibles;
+- Escenarios interactivos con variantes reales, navegación útil y foundations resueltos;
+- Salud con dependencias bloqueantes e indicadores informativos no penalizables claramente separados;
+- exportación JSON, CSS, HTML y paquete GPT + Figma MCP con expansión segura de dependencias.
+
+Gate ejecutado:
+
+- TypeScript y ESLint correctos;
+- 49/49 pruebas correctas;
+- build estático de Next/Pages y build de Storybook correctos;
+- QA real en navegador: claro/oscuro, desktop/mobile, Proyecto, layout, tokens de componente, Catálogo, Escenarios, Salud y exportación; sin overflow global y con un único landmark `main`;
+- Impeccable ejecutado. Sus warnings residuales son decisiones ya clasificadas: Merriweather es una muestra de tipografía del proyecto, el pseudo-elemento lateral es el chevron funcional de bibliotecas e Inter pertenece a la estructura editorial del HTML exportado. Los advisories de valores configurables del sistema generado no se aplican a la UI interna del Laboratorio.

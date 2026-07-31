@@ -6,9 +6,10 @@ import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { ChevronLeft, ChevronRight, CircleUserRound, LoaderCircle, MoreHorizontal, Search } from "lucide-react";
 import { catalogCategories, catalogRegistry, CatalogEntry } from "../lib/catalog-registry";
-import { DesignSystemProject, PlatformId, platformOrder, resolveComponent, resolveSemantic, semanticById } from "../lib/model";
-import { resolveProjectTokens } from "../lib/token-resolver";
+import { componentTokenPath, DesignSystemProject, PlatformId, platformOrder, resolveComponent, resolveSemantic, semanticById } from "../lib/model";
+import { resolveProjectTokens, resolveVariantCssVariables } from "../lib/token-resolver";
 import { ProjectAccordionPreview, ProjectAlertPreview, ProjectCheckboxPreview, ProjectIconButtonPreview, ProjectSelectPreview, ProjectTooltipPreview } from "./ProjectPreviews";
+import { ProjectComponentRenderer } from "./ScenarioComponentPreview";
 import { Alert, Button, Card, SectionHeading, Select } from "./ui/LabUI";
 
 type Props = { project: DesignSystemProject; onOpenTokens: (token: string) => void };
@@ -85,7 +86,7 @@ export function ProjectComponentPreview({ entry, state, portalStyle }: { entry: 
 
 function TokenInspector({ entry, project, theme, platform, onOpenTokens }: { entry: CatalogEntry; project: DesignSystemProject; theme: string; platform: PlatformId; onOpenTokens: Props["onOpenTokens"] }) {
   const componentRows = entry.componentTokens.map((name) => {
-    const token = project.componentTokens.find((item) => item.name === name);
+    const token = project.componentTokens.find((item) => componentTokenPath(project, item) === name);
     const semanticId = token?.reference.startsWith("semantic:") ? token.reference.slice(9) : "";
     const semantic = semanticId ? semanticById(project, semanticId) : undefined;
     const foundation = semantic?.platformRefs[platform] || semantic?.themeRefs[theme] || semantic?.defaultRef || token?.reference.replace("primitive:", "") || "";
@@ -102,7 +103,17 @@ function TokenInspector({ entry, project, theme, platform, onOpenTokens }: { ent
 }
 
 function ComponentSpec({ entry, project, theme, platform, portalStyle, onOpenTokens }: { entry: CatalogEntry; project: DesignSystemProject; theme: string; platform: PlatformId; portalStyle?: CSSProperties; onOpenTokens: Props["onOpenTokens"] }) {
-  return <Card className="catalog-spec"><div className="catalog-spec-head"><div><h3>{entry.name}</h3><p>{entry.purpose}</p></div></div><div className="catalog-state-matrix">{entry.states.map((state) => <div className={`catalog-state ${state === "Open" ? "has-open-overlay" : ""}`} key={state}><span>{state}</span><div><ProjectComponentPreview entry={entry} state={state} portalStyle={portalStyle} /></div></div>)}</div><TokenInspector entry={entry} project={project} theme={theme} platform={platform} onOpenTokens={onOpenTokens} /></Card>;
+  const definition = project.components.find((component) => component.rendererKey === entry.id || component.key === entry.id);
+  const variants = definition ? project.componentVariants.filter((variant) => variant.componentId === definition.id && variant.visibleInCatalog) : [];
+  const [variantId, setVariantId] = useState(variants[0]?.id || "");
+  const activeVariantId = variants.some((variant) => variant.id === variantId) ? variantId : variants[0]?.id || "";
+  const variantStyle = activeVariantId ? resolveVariantCssVariables(project, activeVariantId, theme, platform) : undefined;
+  return <Card className="catalog-spec">
+    <div className="catalog-spec-head"><div><h3>{entry.name}</h3><p>{entry.purpose}</p></div>{variants.length > 1 ? <Select aria-label={`Variante de ${entry.name}`} value={activeVariantId} onValueChange={setVariantId} options={variants.map((variant) => ({ value: variant.id, label: variant.name, meta: variant.key }))} /> : null}</div>
+    <section className="catalog-playground" aria-label={`Playground de ${entry.name}`}><header><div><b>Playground</b><span>Interacción libre con tokens resueltos</span></div></header><div><ProjectComponentRenderer entry={entry} mode="playground" portalStyle={portalStyle} variantStyle={variantStyle} /></div></section>
+    <section className="catalog-state-documentation" aria-label={`Estados de ${entry.name}`}><header><b>Matriz de estados</b><span>Casos deterministas y fuera del orden de tabulación</span></header><div className="catalog-state-matrix">{entry.states.map((state) => <div className={`catalog-state ${state.visibility === "open" ? "has-open-overlay" : ""}`} key={state.id}><span>{state.label}</span><ProjectComponentRenderer entry={entry} mode="snapshot" state={state} portalStyle={portalStyle} variantStyle={variantStyle} /></div>)}</div></section>
+    <TokenInspector entry={entry} project={project} theme={theme} platform={platform} onOpenTokens={onOpenTokens} />
+  </Card>;
 }
 
 export function Catalog({ project, onOpenTokens }: Props) {

@@ -30,7 +30,7 @@ Its useful mechanism is not visual page editing; it is controlled design-system 
 
 The app runs publicly from GitHub Pages at `https://facuu-bazzano.github.io/design-systems-lab/`.
 
-Project data persists locally in the browser and can be exported/imported as an editable project file. The app also exports selectable token subsets and static HTML documentation.
+Project data persists locally in the browser and can be exported/imported as an editable v5 project file. Project settings are edited as a draft and affect the confirmed system only after the user applies them. The app also exports dependency-safe token subsets, static HTML documentation, and an inspect-before-write package for a separate GPT + Figma MCP workflow.
 
 The intended workflow is:
 
@@ -51,8 +51,8 @@ The intended workflow is:
 - Do not make large navigation changes, redesigns, or component substitutions without explicit user approval.
 - Treat published Storybook as QA/documentation for the internal component library, not as the product itself.
 - Keep focused foundation previews, Catalog, Escenarios, and Health on the same token-resolution path; they are different levels of inspection, not independent mock implementations.
-
-Open decision: Impeccable findings should be reviewed by the user before any design changes are implemented.
+- Keep user-created components and variants outside Storybook. They remain serializable and exportable even when no visual renderer exists.
+- Preserve component export dependencies automatically so a partial selection cannot create broken aliases.
 
 ## Brand Commitments
 
@@ -72,6 +72,7 @@ The visual identity should remain restrained, operational, and tool-focused. Avo
 - Component catalog in `app/components/Catalog.tsx`.
 - Health view in `app/components/HealthView.tsx`.
 - Central model and token resolution in `app/lib/model.ts` and `app/lib/token-resolver.ts`.
+- Canonical project-component renderer in `app/components/ScenarioComponentPreview.tsx`, consumed by Catalog and Escenarios.
 - Export logic in `app/lib/exporters.ts`.
 - Storybook stories in `app/components/ui/LabUI.stories.tsx`.
 - Public deployment already active on GitHub Pages.

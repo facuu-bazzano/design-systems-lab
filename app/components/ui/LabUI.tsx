@@ -20,6 +20,9 @@ type ButtonProps = ComponentPropsWithoutRef<"button"> & { variant?: "primary" | 
 export function Button({ variant = "secondary", size = "md", className = "", ...props }: ButtonProps) {
   return <button className={`ui-button ui-button-${variant} ui-button-${size} ${className}`} {...props} />;
 }
+export function ButtonIcon({ children, position = "start" }: { children: ReactNode; position?: "start" | "end" }) {
+  return <span className={`ui-button-icon ui-button-icon-${position}`} aria-hidden="true">{children}</span>;
+}
 export function IconButton({ label, children, className = "", ...props }: ComponentPropsWithoutRef<"button"> & { label: string }) {
   return <button className={`ui-icon-button ${className}`} aria-label={label} title={label} {...props}>{children}</button>;
 }
@@ -153,10 +156,10 @@ export function HealthIndicator({ score, status, summary, onClick }: { score: nu
 }
 
 export function ProjectMenu({ onImport, onDownload, onDuplicate }: { onImport: () => void; onDownload: () => void; onDuplicate: () => void }) {
-  return <DropdownMenu label="Menú del proyecto" trigger={<Button variant="secondary"><FolderIcon /> Proyecto <ChevronDownIcon /></Button>} items={[{ label: "Importar proyecto", onSelect: onImport }, { label: "Descargar proyecto", onSelect: onDownload }, { label: "Duplicar proyecto", onSelect: onDuplicate }]} />;
+  return <DropdownMenu label="Menú del proyecto" trigger={<Button variant="secondary"><ButtonIcon><FolderIcon /></ButtonIcon> Proyecto <ButtonIcon position="end"><ChevronDownIcon /></ButtonIcon></Button>} items={[{ label: "Importar proyecto", onSelect: onImport }, { label: "Descargar proyecto", onSelect: onDownload }, { label: "Duplicar proyecto", onSelect: onDuplicate }]} />;
 }
 export function ExportMenu({ onConfigure, onQuickExport }: { onConfigure: () => void; onQuickExport: () => void }) {
-  return <div className="ui-split-button"><Button variant="primary" onClick={onConfigure}><ExportIcon /> Exportar</Button><DropdownMenu label="Accesos de exportación" trigger={<IconButton label="Más opciones de exportación"><ChevronDownIcon /></IconButton>} items={[{ label: "Configurar exportación", onSelect: onConfigure }, { label: "Exportar última selección", onSelect: onQuickExport }]} /></div>;
+  return <div className="ui-split-button"><Button variant="primary" onClick={onConfigure}><ButtonIcon><ExportIcon /></ButtonIcon> Exportar</Button><DropdownMenu label="Accesos de exportación" trigger={<IconButton label="Más opciones de exportación"><span className="ui-icon-button-slot" aria-hidden="true"><ChevronDownIcon /></span></IconButton>} items={[{ label: "Configurar exportación", onSelect: onConfigure }, { label: "Exportar última selección", onSelect: onQuickExport }]} /></div>;
 }
 
 export function LabHeader({ projectName, onOpenProject, health, themeAction, projectMenu, exportMenu }: { projectName: string; onOpenProject: () => void; health: ReactNode; themeAction: ReactNode; projectMenu: ReactNode; exportMenu: ReactNode }) {

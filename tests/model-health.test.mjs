@@ -20,11 +20,11 @@ const registry = await loadTs("app/lib/catalog-registry.ts");
 const resolver = await loadTs("app/lib/token-resolver.ts", { "./model": model, react: {} });
 const health = await loadTs("app/lib/health.ts", { "./model": model, "./token-resolver": resolver });
 const exporters = await loadTs("app/lib/exporters.ts", { "./catalog-registry": registry, "./model": model, "./token-resolver": resolver, "./health": health });
-const figmaMcp = await loadTs("app/lib/figma-mcp.ts", { "./model": model, "./health": health });
+const figmaMcp = await loadTs("app/lib/figma-mcp.ts", { "./model": model, "./health": health, "./exporters": exporters });
 
 test("validated starter resolves all essential variables in light and dark", () => {
   const project = model.createInitialProject();
-  assert.equal(project.schemaVersion, 4);
+  assert.equal(project.schemaVersion, 5);
   for (const theme of ["light", "dark"]) {
     const snapshot = resolver.resolveProjectTokens(project, theme, "mobile");
     assert.equal(snapshot.ready, true, `${theme} has missing tokens: ${snapshot.missing.join(", ")}`);
@@ -83,10 +83,12 @@ test("blank project is pending rather than failed", () => {
   assert.equal(snapshot.status, "pending");
 });
 
-test("v2 projects are upgraded to a complete v4 baseline", () => {
+test("v2 projects migrate to v5 without reinjecting explicitly removed decisions", () => {
   const upgraded = model.migrateProject({ schemaVersion: 2, id: "legacy", meta: { name: "Importado", description: "", brandMark: "I", updatedAt: "" }, foundations: { colors: [], typography: model.createInitialProject().foundations.typography, scales: model.createInitialProject().foundations.scales, layoutBase: model.createInitialProject().foundations.layoutBase, customFoundations: [] }, semanticTokens: [], componentTokens: [], themes: [] });
-  assert.equal(upgraded.schemaVersion, 4);
-  assert.equal(resolver.resolveProjectTokens(upgraded, "light", "mobile").ready, true);
+  assert.equal(upgraded.schemaVersion, 5);
+  assert.equal(upgraded.semanticTokens.length, 0);
+  assert.equal(upgraded.componentTokens.length, 0);
+  assert.equal(resolver.resolveProjectTokens(upgraded, "light", "mobile").ready, false);
 });
 
 test("the former Nova starter upgrades to the validated starter", () => {
@@ -125,10 +127,40 @@ test("v3 single-family typography migrates to a reusable family library", () => 
   legacy.schemaVersion = 3;
   legacy.foundations.typography = { family: "Inter", source: "google", availableWeights: [400, 700], styles: ["Normal"], base: current.foundations.typography.base, ratioName: current.foundations.typography.ratioName, ratio: current.foundations.typography.ratio, levels: current.foundations.typography.levels.map((level) => ({ id: level.id, name: level.name, size: level.size, weight: level.weight, lineHeight: level.lineHeight, tracking: level.tracking })) };
   const upgraded = model.migrateProject(legacy);
-  assert.equal(upgraded.schemaVersion, 4);
+  assert.equal(upgraded.schemaVersion, 5);
   assert.equal(upgraded.foundations.typography.families.length, 1);
   assert.equal(upgraded.foundations.typography.families[0].family, "Inter");
   assert.ok(upgraded.foundations.typography.levels.every((level) => level.familyId === upgraded.foundations.typography.primaryFamilyId));
+});
+
+test("v5 migration is idempotent and preserves blank and custom projects", () => {
+  const blank = model.createBlankProject();
+  const blankRoundTrip = model.migrateProject(JSON.parse(JSON.stringify(blank)));
+  assert.equal(blankRoundTrip.schemaVersion, 5);
+  assert.equal(blankRoundTrip.projectState, "blank");
+  assert.equal(blankRoundTrip.components.length, 0);
+  const project = model.createInitialProject();
+  project.components.push({ id: "component-client-widget", key: "client-widget", name: "Widget cliente", description: "Exportable", source: "custom" });
+  project.componentVariants.push({ id: "variant-client-widget-default", key: "default", componentId: "component-client-widget", name: "Default", description: "Base", visibleInCatalog: false });
+  const roundTrip = model.migrateProject(JSON.parse(JSON.stringify(project)));
+  assert.deepEqual(roundTrip, model.migrateProject(JSON.parse(JSON.stringify(roundTrip))));
+  assert.ok(roundTrip.components.some((component) => component.key === "client-widget" && !component.rendererKey));
+});
+
+test("variant inheritance resolves slots and rejects cycles", () => {
+  const project = model.createInitialProject();
+  const secondary = project.componentVariants.find((variant) => variant.id === "variant-button-secondary");
+  assert.equal(secondary.inheritsFrom, "variant-button-primary");
+  assert.ok(model.componentTokensForVariant(project, secondary.id).some((token) => token.property === "background"));
+  assert.equal(model.variantInheritanceWouldCycle(project, "variant-button-primary", secondary.id), true);
+});
+
+test("component-only exports include required dependencies", () => {
+  const subset = exporters.buildTokenSubset(model.createInitialProject(), ["components"]);
+  assert.ok(subset.component);
+  assert.ok(subset.semantic);
+  assert.ok(subset.color);
+  assert.ok(subset.scales);
 });
 
 test("multiple typography families resolve per role and remain serializable", () => {
@@ -150,7 +182,7 @@ test("Figma MCP package preserves aliases, modes and an inspect-before-write pla
   const project = model.createInitialProject();
   const bundle = figmaMcp.buildFigmaMcpPackage(project, { targetFileUrl: "https://www.figma.com/design/example/Design-System", conflictPolicy: "review", dryRun: true });
   assert.equal(bundle.kind, "design-systems-lab/figma-mcp-package");
-  assert.equal(bundle.validation.status, "ready-with-warnings");
+  assert.equal(bundle.validation.status, "ready-with-warnings", JSON.stringify(bundle.validation));
   assert.equal(bundle.validation.errors.length, 0);
   assert.ok(bundle.manifest.collections.find((collection) => collection.key === "primitives-color"));
   const typographyPrimitives = bundle.manifest.collections.find((collection) => collection.key === "primitives-typography");
@@ -170,9 +202,9 @@ test("Figma MCP package preserves aliases, modes and an inspect-before-write pla
   assert.ok(primitives.length > 0);
   assert.ok(primitives.every((variable) => variable.scopes.length === 0 && variable.exposure === "internal" && variable.hiddenFromPublishing));
   const components = bundle.manifest.collections.find((collection) => collection.key === "component");
-  assert.deepEqual(components.variables.find((variable) => variable.key === "component.button-primary-bg").scopes, ["FRAME_FILL", "SHAPE_FILL"]);
-  assert.deepEqual(components.variables.find((variable) => variable.key === "component.button-primary-fg").scopes, ["TEXT_FILL"]);
-  assert.deepEqual(components.variables.find((variable) => variable.key === "component.button-radius").scopes, ["CORNER_RADIUS"]);
+  assert.deepEqual(components.variables.find((variable) => variable.key === "component.button.primary.default.background").scopes, ["FRAME_FILL", "SHAPE_FILL"]);
+  assert.deepEqual(components.variables.find((variable) => variable.key === "component.button.primary.default.foreground").scopes, ["TEXT_FILL"]);
+  assert.deepEqual(components.variables.find((variable) => variable.key === "component.button.primary.default.radius").scopes, ["CORNER_RADIUS"]);
   assert.ok(bundle.manifest.collections.flatMap((collection) => collection.variables).every((variable) => !variable.scopes.includes("ALL_SCOPES")));
   assert.equal(bundle.manifest.scopePolicy.allScopesAllowed, false);
   assert.deepEqual(bundle.manifest.scopePolicy.supportedByType.STRING, ["TEXT_CONTENT", "FONT_FAMILY", "FONT_STYLE"]);

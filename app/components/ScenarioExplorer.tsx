@@ -1,12 +1,13 @@
 "use client";
 
-import { CSSProperties, useId, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Activity, Home, Library } from "lucide-react";
 import { catalogRegistry, CatalogEntry } from "../lib/catalog-registry";
 import { DesignSystemProject, PlatformId } from "../lib/model";
 import { ScenarioDefinition, scenarioCoverage, scenarioRegistry } from "../lib/scenario-registry";
-import { resolveProjectTokens } from "../lib/token-resolver";
+import { resolveProjectTokens, resolveVariantCssVariables } from "../lib/token-resolver";
 import { ScenarioComponentPreview } from "./ScenarioComponentPreview";
-import { Alert, Badge, Card, Checkbox, SectionHeading, Select, Toggle } from "./ui/LabUI";
+import { Alert, Badge, Card, SectionHeading, Select, Switch, Toggle } from "./ui/LabUI";
 
 type ExplorerView = "explore" | "platforms" | "modes";
 
@@ -29,18 +30,27 @@ const scenarioSections: Record<ScenarioDefinition["id"], { title: string; descri
   ],
 };
 
-function ScenarioModule({ entry, style }: { entry: CatalogEntry; style: CSSProperties }) {
-  return <article className={`scenario-module scenario-module-${entry.id}`}><span>{entry.name}</span><ScenarioComponentPreview entry={entry} portalStyle={style} /></article>;
+function ScenarioModule({ entry, style, project, theme, platform }: { entry: CatalogEntry; style: CSSProperties; project: DesignSystemProject; theme: string; platform: PlatformId }) {
+  const definition = project.components.find((component) => component.rendererKey === entry.id);
+  const variants = definition ? project.componentVariants.filter((variant) => variant.componentId === definition.id && variant.visibleInCatalog) : [];
+  const [selectedVariantId, setSelectedVariantId] = useState(variants[0]?.id || "");
+  const activeVariantId = variants.some((variant) => variant.id === selectedVariantId) ? selectedVariantId : variants[0]?.id || "";
+  const variantStyle = activeVariantId ? resolveVariantCssVariables(project, activeVariantId, theme, platform) as CSSProperties : undefined;
+  return <article className={`scenario-module scenario-module-${entry.id}`}>
+    <header className="scenario-module-header"><span>{entry.name}</span>{variants.length > 1 ? <Select label="Variante" className="scenario-variant-select" value={activeVariantId} onValueChange={setSelectedVariantId} options={variants.map((variant) => ({ value: variant.id, label: variant.name }))} /> : null}</header>
+    <ScenarioComponentPreview entry={entry} portalStyle={style} variantStyle={variantStyle} />
+  </article>;
 }
 
-function ScenarioFlow({ scenario, entries, style }: { scenario: ScenarioDefinition; entries: CatalogEntry[]; style: CSSProperties }) {
+function ScenarioFlow({ scenario, entries, style, contentId, project, theme, platform }: { scenario: ScenarioDefinition; entries: CatalogEntry[]; style: CSSProperties; contentId: string; project: DesignSystemProject; theme: string; platform: PlatformId }) {
   return <div className={`scenario-flow scenario-flow-${scenario.id}`}>
     {scenarioSections[scenario.id].map((section) => {
       const sectionEntries = section.componentIds.map((id) => entries.find((entry) => entry.id === id)).filter(Boolean) as CatalogEntry[];
       if (!sectionEntries.length) return null;
-      return <section className="scenario-flow-section" key={section.title}>
+      const index = scenarioSections[scenario.id].indexOf(section);
+      return <section className="scenario-flow-section" id={`${contentId}-section-${index}`} data-scenario-section={index} key={section.title}>
         <header><h4>{section.title}</h4><p>{section.description}</p></header>
-        <div className="scenario-module-grid">{sectionEntries.map((entry) => <ScenarioModule key={entry.id} entry={entry} style={style} />)}</div>
+        <div className="scenario-module-grid">{sectionEntries.map((entry) => <ScenarioModule key={entry.id} entry={entry} style={style} project={project} theme={theme} platform={platform} />)}</div>
       </section>;
     })}
   </div>;
@@ -48,6 +58,8 @@ function ScenarioFlow({ scenario, entries, style }: { scenario: ScenarioDefiniti
 
 function ScenarioCanvas({ project, scenarioId, initialTheme, platform, showGrid, lockTheme = false }: { project: DesignSystemProject; scenarioId: ScenarioDefinition["id"]; initialTheme: string; platform: PlatformId; showGrid: boolean; lockTheme?: boolean }) {
   const [activeTheme, setActiveTheme] = useState(initialTheme);
+  const [activeSection, setActiveSection] = useState(0);
+  const scrollRef = useRef<HTMLElement>(null);
   const contentId = `scenario-content-${useId().replaceAll(":", "")}`;
   const scenario = scenarioRegistry.find((item) => item.id === scenarioId) || scenarioRegistry[0];
   const snapshot = resolveProjectTokens(project, activeTheme, platform);
@@ -61,6 +73,25 @@ function ScenarioCanvas({ project, scenarioId, initialTheme, platform, showGrid,
   const typeMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-typography-multiplier"] || 1);
   const spacingMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-spacing-multiplier"] || 1);
   const dimensionsMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-dimensions-multiplier"] || 1);
+  const sections = scenarioSections[scenario.id];
+  const sectionIcons = [Home, Activity, Library];
+  const navigateSection = (index: number) => {
+    document.getElementById(`${contentId}-section-${index}`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    setActiveSection(index);
+  };
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const updateActive = () => {
+      const candidates = [...root.querySelectorAll<HTMLElement>("[data-scenario-section]")];
+      if (!candidates.length) return;
+      const rootTop = root.getBoundingClientRect().top;
+      const current = candidates.reduce((best, item) => Math.abs(item.getBoundingClientRect().top - rootTop - 24) < Math.abs(best.getBoundingClientRect().top - rootTop - 24) ? item : best);
+      setActiveSection(Number(current.dataset.scenarioSection || 0));
+    };
+    root.addEventListener("scroll", updateActive, { passive: true });
+    return () => root.removeEventListener("scroll", updateActive);
+  }, [contentId]);
 
   return <article className={`scenario-comparison-card platform-${platform}`}>
     <header className="scenario-comparison-label">
@@ -79,17 +110,17 @@ function ScenarioCanvas({ project, scenarioId, initialTheme, platform, showGrid,
     </header>
     <div className="scenario-device-stage">
       <div className={`scenario-product-shell ${showGrid ? "show-grid" : ""}`} style={style}>
-        <header className="scenario-product-header"><div><span>{project.meta.brandMark}</span><b>{project.meta.name}</b></div><nav aria-label="Navegación del escenario"><a href={`#${contentId}`}>Inicio</a><a href={`#${contentId}`}>Equipo</a><a href={`#${contentId}`}>Ajustes</a></nav></header>
-        <aside className="scenario-product-sidebar" aria-label="Navegación secundaria"><b>{scenario.name}</b><a href={`#${contentId}`}><span aria-hidden="true">01</span>Resumen</a><a href={`#${contentId}`}><span aria-hidden="true">02</span>Actividad</a><a href={`#${contentId}`}><span aria-hidden="true">03</span>Biblioteca</a></aside>
-        <section id={contentId} className="scenario-product-main" aria-label={`Contenido de ${scenario.name}`}>
+        <header className="scenario-product-header"><div><span>{project.meta.brandMark}</span><b>{project.meta.name}</b></div><span className="scenario-header-context">{scenario.name}</span></header>
+        <aside className="scenario-product-sidebar" aria-label={`Secciones de ${scenario.name}`}><b>{scenario.name}</b>{sections.map((section, index) => { const Icon = sectionIcons[index] || Library; return <button type="button" className={activeSection === index ? "is-active" : ""} aria-current={activeSection === index ? "page" : undefined} onClick={() => navigateSection(index)} key={section.title}><Icon aria-hidden="true" /><span>{section.title}</span></button>; })}</aside>
+        <section ref={scrollRef} id={contentId} className="scenario-product-main" aria-label={`Contenido de ${scenario.name}`}>
           <div className="scenario-product-content">
             <div className="scenario-grid-lines" aria-hidden="true">{Array.from({ length: columnsNumber }).map((_, index) => <i key={index} />)}</div>
             <div className="scenario-product-title"><div><small>Escenario vivo</small><h3>{scenario.name}</h3><p>{scenario.description}</p></div></div>
-            <ScenarioFlow scenario={scenario} entries={entries} style={style} />
+            <ScenarioFlow scenario={scenario} entries={entries} style={style} contentId={contentId} project={project} theme={activeTheme} platform={platform} />
           </div>
         </section>
         <aside className="scenario-product-inspector"><b>Inspector</b><span>{entries.length} componentes</span><span>{snapshot.missing.length ? `${snapshot.missing.length} referencias pendientes` : "Tokens resueltos"}</span><dl><div><dt>Modo</dt><dd>{themeName}</dd></div><div><dt>Tipografía</dt><dd>{typeMultiplier}×</dd></div><div><dt>Espaciado</dt><dd>{spacingMultiplier}×</dd></div><div><dt>Grilla</dt><dd>{columns} columnas</dd></div></dl></aside>
-        <nav className="scenario-product-bottom" aria-label="Navegación mobile"><a href={`#${contentId}`}>Inicio</a><a href={`#${contentId}`}>Actividad</a><a href={`#${contentId}`}>Perfil</a></nav>
+        <nav className="scenario-product-bottom" aria-label={`Secciones de ${scenario.name}`}>{sections.slice(0, 3).map((section, index) => { const Icon = sectionIcons[index] || Library; return <button type="button" className={activeSection === index ? "is-active" : ""} aria-current={activeSection === index ? "page" : undefined} onClick={() => navigateSection(index)} key={section.title}><Icon aria-hidden="true" /><span>{section.title}</span></button>; })}</nav>
         {!snapshot.ready ? <div className="scenario-configuration-pending">Configuración pendiente: no se inventan valores para {snapshot.missing.length} referencias.</div> : null}
       </div>
     </div>
@@ -129,7 +160,7 @@ export function ScenarioExplorer({ project, initialComponent }: { project: Desig
       <Select label="Vista" value={view} onValueChange={(value) => setView(value as ExplorerView)} options={[{ value: "explore", label: "Explorar" }, { value: "platforms", label: "Comparar plataformas" }, { value: "modes", label: "Comparar modos" }]} />
       {view !== "platforms" ? <Select label="Plataforma" value={activePlatform} onValueChange={(value) => setPlatform(value as PlatformId)} options={enabledPlatforms.map((id) => ({ value: id, label: project.platforms[id].name }))} /> : null}
       <Select label="Escenario" value={mobileCanShowAll ? scenarioId : effectiveScenarioId} onValueChange={setScenarioId} options={scenarioOptions} />
-      <Checkbox checked={showGrid} onCheckedChange={setShowGrid} label="Mostrar grilla" />
+      <Switch checked={showGrid} onCheckedChange={setShowGrid} label="Mostrar grilla" ariaLabel="Mostrar grilla en todos los escenarios visibles" />
     </Card>
     <div className="scenario-context-row">
       <div><b>Cobertura completa</b><span>{scenarioCoverage.length}/{catalogRegistry.length} componentes en {scenarioRegistry.length} escenarios</span></div>

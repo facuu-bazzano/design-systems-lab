@@ -9,19 +9,24 @@ export type TypographyFamily = { id: string; family: string; source: FontSource;
 export type TypeLevel = { id: string; name: string; familyId: string; size: number; weight: number; lineHeight: number; tracking: number };
 export type TypographyFoundation = { families: TypographyFamily[]; primaryFamilyId: string; base: { size: number; weight: number; lineHeight: number; tracking: number }; ratioName: string; ratio: number; levels: TypeLevel[] };
 export type SemanticToken = { id: string; name: string; category: string; defaultRef: string; themeRefs: Record<string, string>; platformRefs: Partial<Record<PlatformId, string>>; description: string };
-export type ComponentToken = { id: string; name: string; component: string; reference: string; platformRefs: Partial<Record<PlatformId, string>>; description: string };
+export type TokenValueType = "color" | "dimension" | "number" | "fontFamily" | "fontWeight" | "shadow" | "opacity" | "duration" | "easing" | "string" | "boolean";
+export type ProjectComponentDefinition = { id: string; key: string; name: string; description: string; source: "catalog" | "custom"; rendererKey?: string };
+export type ComponentVariant = { id: string; key: string; componentId: string; name: string; description: string; inheritsFrom?: string; visibleInCatalog: boolean };
+export type ComponentToken = { id: string; key: string; name: string; componentId: string; variantId: string; state: string; property: string; valueType: TokenValueType; reference: string; platformRefs: Partial<Record<PlatformId, string>>; description: string };
 export type Theme = { id: string; name: string };
-export type LayoutValues = { columns: number; margin: number; gutter: number; maxWidth: number; breakpoint: number; baseline: number; baselineEnabled: boolean };
+export type LayoutValues = { columns: number; margin: number; gutter: number; maxWidth: number; breakpoint: number; verticalRhythmUnit: number; verticalRhythmEnabled: boolean };
 export type ResponsiveScaleValues = { typography: number; spacing: number; dimensions: number };
-export type PlatformConfig = { id: PlatformId; name: string; enabled: boolean; inheritFrom: PlatformId | null; overrides: Partial<LayoutValues>; scaleOverrides: Partial<ResponsiveScaleValues>; proposalPending: boolean };
+export type PlatformConfig = { id: PlatformId; name: string; enabled: boolean; inheritFrom: PlatformId | null; overrides: Partial<LayoutValues>; scaleOverrides: Partial<ResponsiveScaleValues>; proposalPending: boolean; includedWhileInactive?: boolean };
 
 export type DesignSystemProject = {
-  schemaVersion: 4;
+  schemaVersion: 5;
   projectState: ProjectState;
   id: string;
   meta: { name: string; description: string; brandMark: string; updatedAt: string };
   foundations: { colors: ColorPalette[]; typography: TypographyFoundation; scales: Record<ScaleGroupKey, ScaleToken[]>; layoutBase: LayoutValues; customFoundations: { id: string; name: string; description: string; tokens: ScaleToken[] }[] };
   semanticTokens: SemanticToken[];
+  components: ProjectComponentDefinition[];
+  componentVariants: ComponentVariant[];
   componentTokens: ComponentToken[];
   themes: Theme[];
   platforms: Record<PlatformId, PlatformConfig>;
@@ -32,6 +37,41 @@ export const uid = () => Math.random().toString(36).slice(2, 9);
 export const colorSteps = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900"];
 export const platformOrder: PlatformId[] = ["mobile", "mobile-landscape", "tablet", "desktop"];
 export const scaleLabels: Record<ScaleGroupKey, string> = { spacing: "Espaciado", dimensions: "Dimensiones", radii: "Radios", borders: "Bordes", shadows: "Sombras", opacity: "Opacidad" };
+export const componentKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `component-${uid()}`;
+export const tokenKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9.-]+/g, "-").replace(/(^[.-]+|[.-]+$)/g, "") || `token-${uid()}`;
+
+const catalogComponentSeeds: Array<[string, string, string]> = [
+  ["button", "Button", "Acciones"], ["link", "Link", "Acciones"], ["icon", "Icon", "Acciones"],
+  ["input", "Text field", "Inputs"], ["textarea", "Text area", "Inputs"], ["select", "Select", "Inputs"], ["calendar", "Calendar", "Inputs"],
+  ["checkbox", "Checkbox", "Selección"], ["radio", "Input radio", "Selección"], ["switch", "Switch", "Selección"],
+  ["accordion", "Accordion", "Navegación"], ["breadcrumbs", "Breadcrumbs", "Navegación"], ["dropdown", "Dropdown", "Navegación"], ["pagination", "Pagination", "Navegación"], ["tabs", "Tabs", "Navegación"],
+  ["alert", "Alert", "Feedback"], ["badge", "Badge", "Feedback"], ["loading", "Loading indicator", "Feedback"], ["progress", "Progress bar", "Feedback"], ["skeleton", "Skeleton", "Feedback"], ["toast", "Toast", "Feedback"], ["tooltip", "Tooltip", "Feedback"],
+  ["avatar", "Avatar", "Datos y superficies"], ["card", "Card", "Datos y superficies"], ["carousel", "Carousel", "Datos y superficies"], ["divider", "Divider", "Datos y superficies"], ["image", "Image", "Datos y superficies"], ["list", "List", "Datos y superficies"], ["modal", "Modal", "Datos y superficies"], ["table", "Table", "Datos y superficies"],
+];
+
+export const defaultComponentDefinitions = (): ProjectComponentDefinition[] => [
+  ...catalogComponentSeeds.map(([key, name, description]) => ({ id: `component-${key}`, key, name, description, source: "catalog" as const, rendererKey: key })),
+  { id: "component-control", key: "control", name: "Controles compartidos", description: "Decisiones comunes de selección", source: "custom" },
+];
+
+const componentAlias: Record<string, string> = { "text field": "input", "text area": "textarea", "input radio": "radio", selection: "control", controls: "control" };
+function componentIdForName(value: string) { const key = componentAlias[value.trim().toLowerCase()] || componentKey(value); return `component-${key}`; }
+function titleCase(value: string) { return value.split(/[-_.\s]+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" "); }
+function inferValueType(reference: string, property = ""): TokenValueType {
+  if (reference.startsWith("primitive:radii") || reference.startsWith("primitive:borders") || /radius|width|height|gap|spacing|size/.test(property)) return "dimension";
+  if (reference.startsWith("primitive:shadows") || property.includes("shadow")) return "shadow";
+  if (reference.startsWith("primitive:opacity") || property.includes("opacity")) return "opacity";
+  return "color";
+}
+
+export function componentById(project: DesignSystemProject, id: string) { return project.components.find((item) => item.id === id || item.key === id); }
+export function variantById(project: DesignSystemProject, id: string) { return project.componentVariants.find((item) => item.id === id); }
+export function componentTokenPath(project: DesignSystemProject, token: ComponentToken) {
+  const component = componentById(project, token.componentId);
+  const variant = variantById(project, token.variantId);
+  return [component?.key || "component", variant?.key || "default", token.state, token.property].filter(Boolean).join(".");
+}
+export function componentDisplayName(project: DesignSystemProject, token: ComponentToken) { return componentById(project, token.componentId)?.name || "Componente"; }
 const tokenList = (pairs: [string, string][]): ScaleToken[] => pairs.map(([name, value]) => ({ id: uid(), name, value }));
 
 function mixHex(hex: string, target: number, ratio: number) {
@@ -103,7 +143,22 @@ export const defaultSemanticTokens = (): SemanticToken[] => [
   semantic("feedback-success", "feedback.success", "Feedback", "Emerald.700", "Confirmación positiva", "Emerald.500"), semantic("feedback-warning", "feedback.warning", "Feedback", "Amber.700", "Advertencia", "Amber.500"), semantic("feedback-destructive", "feedback.destructive", "Feedback", "Rose.700", "Error o acción destructiva", "Rose.700"),
   semantic("disabled-surface", "disabled.surface", "Estado", "Slate.200", "Superficie deshabilitada", "Slate.700"), semantic("disabled-content", "disabled.content", "Estado", "Slate.500", "Contenido deshabilitado", "Slate.500"), semantic("selected-surface", "selected.surface", "Estado", "Indigo.100", "Control seleccionado", "Indigo.800"), semantic("selected-border", "selected.border", "Estado", "Indigo.600", "Borde seleccionado", "Indigo.300"),
 ];
-const componentToken = (id: string, name: string, component: string, reference: string, description: string): ComponentToken => ({ id, name, component, reference, platformRefs: {}, description });
+const stateKeys = new Set(["default", "hover", "focus", "pressed", "active", "selected", "disabled", "error", "warning", "success", "open", "closed", "readonly", "checked", "unchecked", "indeterminate", "complete", "empty", "loading"]);
+function parseLegacyComponentPath(path: string, component: string) {
+  const parts = path.split(".").map(tokenKey).filter(Boolean);
+  const second = parts[1] || "default";
+  const isState = stateKeys.has(second);
+  const variantKey = isState ? "default" : second;
+  const third = parts[2] || "value";
+  const state = isState ? second : stateKeys.has(third) ? third : "default";
+  const property = isState ? third : stateKeys.has(third) ? parts[3] || "background" : third;
+  const componentId = componentIdForName(component);
+  return { componentId, variantId: `variant-${componentId.replace(/^component-/, "")}-${variantKey}`, state, property };
+}
+const componentToken = (id: string, key: string, component: string, reference: string, name: string): ComponentToken => {
+  const parsed = parseLegacyComponentPath(key, component);
+  return { id, key, name, ...parsed, valueType: inferValueType(reference, parsed.property), reference, platformRefs: {}, description: name };
+};
 export const defaultComponentTokens = (): ComponentToken[] => [
   componentToken("button-primary-bg", "button.primary.background", "Button", "semantic:action-primary", "Fondo primario"),
   componentToken("button-primary-fg", "button.primary.foreground", "Button", "semantic:text-on-action", "Contenido sobre acción"),
@@ -122,8 +177,6 @@ export const defaultComponentTokens = (): ComponentToken[] => [
   componentToken("input-fg", "input.default.foreground", "Input", "semantic:text-primary", "Contenido"),
   componentToken("input-disabled-bg", "input.disabled.background", "Input", "semantic:disabled-surface", "Fondo deshabilitado"),
   componentToken("input-disabled-fg", "input.disabled.foreground", "Input", "semantic:disabled-content", "Contenido deshabilitado"),
-  componentToken("input-focus-border", "input.focus.border", "Input", "semantic:focus-ring", "Borde de foco"),
-  componentToken("input-error-border", "input.error.border", "Input", "semantic:feedback-destructive", "Borde de error"),
   componentToken("input-focus-ring", "input.focus.ring", "Input", "semantic:focus-ring", "Anillo de foco"),
   componentToken("input-error-fg", "input.error.foreground", "Input", "semantic:feedback-destructive", "Texto de error"),
   componentToken("select-menu-bg", "select.menu.background", "Select", "semantic:surface-raised", "Fondo del menú"),
@@ -168,7 +221,20 @@ export const defaultComponentTokens = (): ComponentToken[] => [
   componentToken("divider-border", "divider.default.border", "Divider", "semantic:border-subtle", "Divisor"),
 ];
 
-const baseLayout: LayoutValues = { columns: 4, margin: 16, gutter: 16, maxWidth: 480, breakpoint: 0, baseline: 8, baselineEnabled: true };
+export function defaultComponentVariants(definitions = defaultComponentDefinitions(), tokens = defaultComponentTokens()): ComponentVariant[] {
+  return definitions.flatMap((component) => {
+    const ids = [...new Set(tokens.filter((token) => token.componentId === component.id).map((token) => token.variantId))];
+    const variantIds = component.key === "button"
+      ? ["variant-button-primary", "variant-button-secondary", "variant-button-tertiary", "variant-button-destructive", "variant-button-custom"]
+      : ids.length ? ids : [`variant-${component.key}-default`];
+    return [...new Set(variantIds)].map((id) => {
+      const key = id.replace(`variant-${component.key}-`, "") || "default";
+      return { id, key, componentId: component.id, name: titleCase(key), description: `${component.name} · ${titleCase(key)}`, inheritsFrom: component.key === "button" && !["primary", "destructive"].includes(key) ? "variant-button-primary" : undefined, visibleInCatalog: true };
+    });
+  });
+}
+
+const baseLayout: LayoutValues = { columns: 4, margin: 16, gutter: 16, maxWidth: 480, breakpoint: 0, verticalRhythmUnit: 8, verticalRhythmEnabled: true };
 const defaultPlatforms = (): Record<PlatformId, PlatformConfig> => ({
   mobile: { id: "mobile", name: "Mobile", enabled: true, inheritFrom: null, overrides: {}, scaleOverrides: {}, proposalPending: false },
   "mobile-landscape": { id: "mobile-landscape", name: "Mobile horizontal", enabled: false, inheritFrom: "mobile", overrides: { columns: 6, margin: 24, maxWidth: 760, breakpoint: 568 }, scaleOverrides: { typography: 1, spacing: 1, dimensions: 1 }, proposalPending: true },
@@ -178,11 +244,14 @@ const defaultPlatforms = (): Record<PlatformId, PlatformConfig> => ({
 const defaultScales = (): Record<ScaleGroupKey, ScaleToken[]> => ({ spacing: tokenList([["2xs", "4px"], ["xs", "8px"], ["sm", "12px"], ["md", "16px"], ["lg", "24px"], ["xl", "32px"], ["2xl", "48px"], ["3xl", "64px"]]), dimensions: tokenList([["control-sm", "32px"], ["control-md", "40px"], ["control-lg", "48px"]]), radii: tokenList([["sm", "6px"], ["md", "10px"], ["lg", "16px"], ["pill", "999px"]]), borders: tokenList([["subtle", "1px"], ["strong", "2px"]]), shadows: tokenList([["sm", "0 1px 3px rgba(24,24,27,.10)"], ["md", "0 8px 24px rgba(24,24,27,.14)"], ["lg", "0 20px 50px rgba(24,24,27,.18)"]]), opacity: tokenList([["disabled-interaction", "0.42"], ["temporary-overlay", "0.68"], ["solid", "1"]]) });
 
 export function createInitialProject(): DesignSystemProject {
-  return { schemaVersion: 4, projectState: "validated", id: "ds-starter", meta: { name: "Sistema inicial validado", description: "Una base completa y contrastada para explorar antes del handoff.", brandMark: "DS", updatedAt: new Date().toISOString() }, foundations: { colors: [makePalette("Indigo", "#4F46E5"), makePalette("Amber", "#D97706"), makeNeutralPalette(), makePalette("Rose", "#E11D48"), makePalette("Emerald", "#059669")], typography: defaultTypography(), scales: defaultScales(), layoutBase: baseLayout, customFoundations: [] }, semanticTokens: defaultSemanticTokens(), componentTokens: defaultComponentTokens(), themes: [{ id: "light", name: "Claro" }, { id: "dark", name: "Oscuro" }], platforms: defaultPlatforms(), implementationProfile: { web: true, ios: true, android: true } };
+  const components = defaultComponentDefinitions();
+  const componentTokens = defaultComponentTokens();
+  const componentVariants = defaultComponentVariants(components, componentTokens);
+  return { schemaVersion: 5, projectState: "validated", id: "ds-starter", meta: { name: "Sistema inicial validado", description: "Una base completa y contrastada para explorar antes del handoff.", brandMark: "DS", updatedAt: new Date().toISOString() }, foundations: { colors: [makePalette("Indigo", "#4F46E5"), makePalette("Amber", "#D97706"), makeNeutralPalette(), makePalette("Rose", "#E11D48"), makePalette("Emerald", "#059669")], typography: defaultTypography(), scales: defaultScales(), layoutBase: baseLayout, customFoundations: [] }, semanticTokens: defaultSemanticTokens(), components, componentVariants, componentTokens, themes: [{ id: "light", name: "Claro" }, { id: "dark", name: "Oscuro" }], platforms: defaultPlatforms(), implementationProfile: { web: true, ios: true, android: true } };
 }
 export function createBlankProject(): DesignSystemProject {
   const base = createInitialProject();
-  return { ...base, projectState: "blank", id: uid(), meta: { name: "Proyecto en blanco", description: "Configurá foundations y asigná roles para comenzar la evaluación.", brandMark: "PB", updatedAt: new Date().toISOString() }, foundations: { ...base.foundations, colors: [], customFoundations: [] }, semanticTokens: [], componentTokens: [], themes: [{ id: "light", name: "Claro" }] };
+  return { ...base, projectState: "blank", id: uid(), meta: { name: "Proyecto en blanco", description: "Configurá foundations y asigná roles para comenzar la evaluación.", brandMark: "PB", updatedAt: new Date().toISOString() }, foundations: { ...base.foundations, colors: [], customFoundations: [] }, semanticTokens: [], components: [], componentVariants: [], componentTokens: [], themes: [{ id: "light", name: "Claro" }] };
 }
 
 function parseAlphaReference(reference: string) { const [base, alpha] = reference.split("@"); return { base, alpha: alpha ? Math.max(0, Math.min(100, Number(alpha))) / 100 : 1 }; }
@@ -191,7 +260,48 @@ export function resolvePrimitiveColor(project: DesignSystemProject, reference: s
 export function semanticById(project: DesignSystemProject, id: string) { return project.semanticTokens.find((token) => token.id === id || token.name === id); }
 export function resolveSemantic(project: DesignSystemProject, id: string, themeId: string, platform: PlatformId) { const token = semanticById(project, id); if (!token) return ""; return resolvePrimitiveColor(project, token.platformRefs[platform] || token.themeRefs[themeId] || token.defaultRef); }
 export function resolveScaleToken(project: DesignSystemProject, reference: string) { const [group, name] = reference.replace("primitive:", "").split(".") as [ScaleGroupKey, string]; return project.foundations.scales[group]?.find((token) => token.name === name)?.value || ""; }
-export function resolveComponent(project: DesignSystemProject, id: string, themeId: string, platform: PlatformId) { const token = project.componentTokens.find((item) => item.id === id || item.name === id); if (!token) return ""; const reference = token.platformRefs[platform] || token.reference; return reference.startsWith("semantic:") ? resolveSemantic(project, reference.slice(9), themeId, platform) : reference.startsWith("primitive:") ? resolveScaleToken(project, reference) : ""; }
+export function resolveComponentReference(project: DesignSystemProject, reference: string, themeId: string, platform: PlatformId) {
+  if (reference.startsWith("semantic:")) return resolveSemantic(project, reference.slice(9), themeId, platform);
+  if (reference.startsWith("primitive:")) return resolveScaleToken(project, reference);
+  if (reference.startsWith("typography:")) return project.foundations.typography.families.find((family) => family.id === reference.slice(11))?.family || "";
+  if (reference.startsWith("fontWeight:")) return reference.slice(11);
+  if (reference.startsWith("custom:")) {
+    const [, groupId, tokenId] = reference.split(":");
+    return project.foundations.customFoundations.find((group) => group.id === groupId)?.tokens.find((token) => token.id === tokenId || token.name === tokenId)?.value || "";
+  }
+  return "";
+}
+export function componentTokensForVariant(project: DesignSystemProject, variantId: string): ComponentToken[] {
+  const visited = new Set<string>();
+  const collect = (id: string): ComponentToken[] => {
+    if (visited.has(id)) return [];
+    visited.add(id);
+    const variant = variantById(project, id);
+    const inherited = variant?.inheritsFrom ? collect(variant.inheritsFrom) : [];
+    const own = project.componentTokens.filter((token) => token.variantId === id);
+    const merged = new Map(inherited.map((token) => [`${token.state}:${token.property}`, token]));
+    own.forEach((token) => merged.set(`${token.state}:${token.property}`, token));
+    return [...merged.values()];
+  };
+  return collect(variantId);
+}
+export function resolveComponent(project: DesignSystemProject, id: string, themeId: string, platform: PlatformId) {
+  const token = project.componentTokens.find((item) => item.id === id || item.key === id || componentTokenPath(project, item) === id);
+  if (!token) return "";
+  const reference = token.platformRefs[platform] || token.reference;
+  return resolveComponentReference(project, reference, themeId, platform);
+}
+export function variantInheritanceWouldCycle(project: DesignSystemProject, variantId: string, parentId?: string) {
+  if (!parentId) return false;
+  const visited = new Set([variantId]);
+  let cursor: string | undefined = parentId;
+  while (cursor) {
+    if (visited.has(cursor)) return true;
+    visited.add(cursor);
+    cursor = variantById(project, cursor)?.inheritsFrom;
+  }
+  return false;
+}
 export function allColorReferences(project: DesignSystemProject) {
   const paletteReferences = project.foundations.colors.flatMap((item) => Object.keys(item.scale).map((step) => `${item.name}.${step}`));
   const assignedReferences = project.semanticTokens.flatMap((token) => [token.defaultRef, ...Object.values(token.themeRefs), ...Object.values(token.platformRefs)]).filter((reference): reference is string => Boolean(reference) && !reference.startsWith("#"));
@@ -201,8 +311,10 @@ export function resolveLayout(project: DesignSystemProject, platformId: Platform
 export function resolveResponsiveScale(project: DesignSystemProject, platformId: PlatformId): ResponsiveScaleValues { const platform = project.platforms[platformId]; const base = platform?.inheritFrom ? resolveResponsiveScale(project, platform.inheritFrom) : { typography: 1, spacing: 1, dimensions: 1 }; return { ...base, ...platform?.scaleOverrides }; }
 
 type LegacyTypography = Partial<Omit<TypographyFoundation, "levels">> & { family?: string; source?: FontSource; availableWeights?: number[]; styles?: string[]; levels?: Array<Partial<TypeLevel> & Pick<TypeLevel, "name" | "size" | "weight" | "lineHeight" | "tracking">> };
-type LegacyFoundations = Omit<Partial<DesignSystemProject["foundations"]>, "typography"> & { typography?: LegacyTypography; spacing?: ScaleToken[]; dimensions?: ScaleToken[]; radii?: ScaleToken[]; borders?: ScaleToken[]; shadows?: ScaleToken[]; opacity?: ScaleToken[]; customGroups?: { id: string; name: string; tokens: ScaleToken[] }[] };
-type LegacyProject = Omit<Partial<DesignSystemProject>, "schemaVersion" | "foundations"> & { schemaVersion?: number; meta?: DesignSystemProject["meta"] & { target?: string }; foundations?: LegacyFoundations };
+type LegacyLayout = Partial<LayoutValues> & { baseline?: number; baselineEnabled?: boolean };
+type LegacyComponentToken = Partial<ComponentToken> & { id: string; name?: string; component?: string; reference?: string; platformRefs?: Partial<Record<PlatformId, string>>; description?: string };
+type LegacyFoundations = Omit<Partial<DesignSystemProject["foundations"]>, "typography" | "layoutBase"> & { typography?: LegacyTypography; layoutBase?: LegacyLayout; spacing?: ScaleToken[]; dimensions?: ScaleToken[]; radii?: ScaleToken[]; borders?: ScaleToken[]; shadows?: ScaleToken[]; opacity?: ScaleToken[]; customGroups?: { id: string; name: string; tokens: ScaleToken[] }[] };
+type LegacyProject = Omit<Partial<DesignSystemProject>, "schemaVersion" | "foundations" | "componentTokens"> & { schemaVersion?: number; meta?: DesignSystemProject["meta"] & { target?: string }; foundations?: LegacyFoundations; componentTokens?: LegacyComponentToken[] };
 function normalizeTypography(input?: LegacyTypography): TypographyFoundation {
   const fallback = defaultTypography();
   if (!input) return fallback;
@@ -218,13 +330,82 @@ export function migrateProject(input: unknown): DesignSystemProject {
   const fallback = createInitialProject();
   if (!input || typeof input !== "object") return fallback;
   const candidate = input as LegacyProject;
-  const mergeComponents = (tokens: ComponentToken[] = []) => [...tokens, ...defaultComponentTokens().filter((fallbackToken) => !tokens.some((token) => token.id === fallbackToken.id || token.name === fallbackToken.name))];
   if (candidate.id === "ds-nova" && candidate.meta?.name === "Nova Design System") return fallback;
-  if ((candidate.schemaVersion === 3 || candidate.schemaVersion === 4) && candidate.meta && candidate.foundations) {
-    return { ...fallback, ...candidate, schemaVersion: 4, componentTokens: mergeComponents(candidate.componentTokens), meta: { ...fallback.meta, ...candidate.meta }, foundations: { ...fallback.foundations, ...candidate.foundations, typography: normalizeTypography(candidate.foundations.typography), scales: { ...fallback.foundations.scales, ...candidate.foundations.scales } }, platforms: Object.fromEntries(platformOrder.map((id) => [id, { ...fallback.platforms[id], ...candidate.platforms?.[id], scaleOverrides: { ...fallback.platforms[id].scaleOverrides, ...candidate.platforms?.[id]?.scaleOverrides } }])) as Record<PlatformId, PlatformConfig>, implementationProfile: { ...fallback.implementationProfile, ...candidate.implementationProfile } } as DesignSystemProject;
-  }
-  const legacyColors = candidate.foundations?.colors?.map((item) => { const base = item.base || "#4F46E5"; const anchorStep = item.anchorStep || suggestedAnchor(base); return { id: item.id || uid(), name: item.name || "Paleta", base, anchorStep, range: item.range || .78, scale: item.scale || generateColorScale(base, anchorStep), manualSteps: item.manualSteps || [] }; });
-  const importedSemantics = candidate.semanticTokens || [];
-  const completedSemantics = [...importedSemantics, ...defaultSemanticTokens().filter((token) => !importedSemantics.some((item) => item.id === token.id))];
-  return { ...fallback, id: candidate.id || fallback.id, meta: { ...fallback.meta, ...candidate.meta, updatedAt: new Date().toISOString() }, foundations: { ...fallback.foundations, ...candidate.foundations, colors: legacyColors?.length ? legacyColors : fallback.foundations.colors, typography: normalizeTypography(candidate.foundations?.typography), scales: { spacing: candidate.foundations?.scales?.spacing || candidate.foundations?.spacing || fallback.foundations.scales.spacing, dimensions: candidate.foundations?.scales?.dimensions || candidate.foundations?.dimensions || fallback.foundations.scales.dimensions, radii: candidate.foundations?.scales?.radii || candidate.foundations?.radii || fallback.foundations.scales.radii, borders: candidate.foundations?.scales?.borders || candidate.foundations?.borders || fallback.foundations.scales.borders, shadows: candidate.foundations?.scales?.shadows || candidate.foundations?.shadows || fallback.foundations.scales.shadows, opacity: candidate.foundations?.scales?.opacity || candidate.foundations?.opacity || fallback.foundations.scales.opacity }, customFoundations: candidate.foundations?.customFoundations || candidate.foundations?.customGroups?.map((group) => ({ ...group, description: "Foundation personalizado" })) || [] }, semanticTokens: completedSemantics, componentTokens: mergeComponents(candidate.componentTokens), themes: candidate.themes?.length ? candidate.themes : fallback.themes, platforms: fallback.platforms, projectState: "validated", schemaVersion: 4 };
+  const isBlank = candidate.projectState === "blank";
+  const legacyColors = candidate.foundations?.colors?.map((item) => { const base = item.base || "#4F46E5"; const anchorStep = item.anchorStep || suggestedAnchor(base); return { id: item.id || uid(), name: item.name || "Paleta", base, anchorStep, range: item.range ?? .78, scale: item.scale || generateColorScale(base, anchorStep), manualSteps: item.manualSteps || [], origin: item.origin, sourceUrl: item.sourceUrl, creationMethod: item.creationMethod }; });
+  const rawLayout = candidate.foundations?.layoutBase;
+  const layoutBase: LayoutValues = { ...fallback.foundations.layoutBase, ...rawLayout, verticalRhythmUnit: rawLayout?.verticalRhythmUnit ?? rawLayout?.baseline ?? fallback.foundations.layoutBase.verticalRhythmUnit, verticalRhythmEnabled: rawLayout?.verticalRhythmEnabled ?? rawLayout?.baselineEnabled ?? fallback.foundations.layoutBase.verticalRhythmEnabled };
+  const rawTokens = candidate.componentTokens ?? (isBlank ? [] : fallback.componentTokens);
+  const suppliedComponents = candidate.components?.map((item) => ({ ...item, id: item.id || `component-${componentKey(item.key || item.name)}`, key: componentKey(item.key || item.name), source: item.source || "custom" })) || [];
+  const components = [...suppliedComponents];
+  const ensureComponent = (name: string, source: "catalog" | "custom" = "custom") => {
+    const key = componentAlias[name.trim().toLowerCase()] || componentKey(name);
+    let component = components.find((item) => item.key === key || item.id === `component-${key}`);
+    if (!component) {
+      const catalog = defaultComponentDefinitions().find((item) => item.key === key);
+      component = catalog || { id: `component-${key}`, key, name: name.trim() || titleCase(key), description: "Componente migrado", source };
+      components.push(component);
+    }
+    return component;
+  };
+  const componentTokens: ComponentToken[] = rawTokens.map((raw) => {
+    if (raw.componentId && raw.variantId && raw.key) {
+      const component = suppliedComponents.find((item) => item.id === raw.componentId) || ensureComponent(raw.key.split(".")[0]);
+      return { id: raw.id || uid(), key: tokenKey(raw.key), name: raw.name || raw.description || titleCase(raw.property || "token"), componentId: component.id, variantId: raw.variantId, state: raw.state || "default", property: raw.property || "value", valueType: raw.valueType || inferValueType(raw.reference || "", raw.property), reference: raw.reference || "", platformRefs: raw.platformRefs || {}, description: raw.description || raw.name || "Token de componente" };
+    }
+    const key = tokenKey(raw.name || raw.id);
+    const componentName = ("component" in raw ? raw.component : undefined) || key.split(".")[0] || "Componente";
+    const component = ensureComponent(componentName, defaultComponentDefinitions().some((item) => item.key === componentKey(componentName)) ? "catalog" : "custom");
+    const parsed = parseLegacyComponentPath(key, component.key);
+    return { id: raw.id || uid(), key, name: raw.description || titleCase(parsed.property), componentId: component.id, variantId: parsed.variantId, state: parsed.state, property: parsed.property, valueType: inferValueType(raw.reference || "", parsed.property), reference: raw.reference || "", platformRefs: raw.platformRefs || {}, description: raw.description || "Token migrado" };
+  });
+  const suppliedVariants = candidate.componentVariants?.map((item) => ({ ...item, id: item.id || `variant-${componentKey(item.componentId)}-${componentKey(item.key || item.name)}`, key: componentKey(item.key || item.name), visibleInCatalog: item.visibleInCatalog !== false })) || [];
+  const componentVariants = [...suppliedVariants];
+  componentTokens.forEach((token) => {
+    if (componentVariants.some((item) => item.id === token.variantId)) return;
+    const component = components.find((item) => item.id === token.componentId);
+    const key = token.variantId.replace(`variant-${component?.key || "component"}-`, "") || "legacy";
+    componentVariants.push({ id: token.variantId, key, componentId: token.componentId, name: titleCase(key), description: "Variante migrada", visibleInCatalog: true });
+  });
+  components.forEach((component) => { if (!componentVariants.some((variant) => variant.componentId === component.id)) componentVariants.push({ id: `variant-${component.key}-default`, key: "default", componentId: component.id, name: "Default", description: `${component.name} · Default`, visibleInCatalog: true }); });
+  const scales = candidate.foundations?.scales;
+  const platforms = Object.fromEntries(platformOrder.map((id) => {
+    const current = candidate.platforms?.[id];
+    const overrides = current?.overrides as (Partial<LayoutValues> & { baseline?: number; baselineEnabled?: boolean }) | undefined;
+    const normalizedOverrides = overrides ? { ...overrides, verticalRhythmUnit: overrides.verticalRhythmUnit ?? overrides.baseline, verticalRhythmEnabled: overrides.verticalRhythmEnabled ?? overrides.baselineEnabled } : {};
+    delete (normalizedOverrides as { baseline?: number }).baseline;
+    delete (normalizedOverrides as { baselineEnabled?: boolean }).baselineEnabled;
+    return [id, { ...fallback.platforms[id], ...current, overrides: normalizedOverrides, scaleOverrides: { ...fallback.platforms[id].scaleOverrides, ...current?.scaleOverrides } }];
+  })) as Record<PlatformId, PlatformConfig>;
+  return {
+    ...fallback,
+    ...candidate,
+    schemaVersion: 5,
+    projectState: candidate.projectState || "validated",
+    id: candidate.id || fallback.id,
+    meta: { ...fallback.meta, ...candidate.meta, updatedAt: candidate.meta?.updatedAt || new Date().toISOString() },
+    foundations: {
+      ...fallback.foundations,
+      ...candidate.foundations,
+      colors: legacyColors ?? (isBlank ? [] : fallback.foundations.colors),
+      typography: normalizeTypography(candidate.foundations?.typography),
+      scales: {
+        spacing: scales?.spacing ?? candidate.foundations?.spacing ?? fallback.foundations.scales.spacing,
+        dimensions: scales?.dimensions ?? candidate.foundations?.dimensions ?? fallback.foundations.scales.dimensions,
+        radii: scales?.radii ?? candidate.foundations?.radii ?? fallback.foundations.scales.radii,
+        borders: scales?.borders ?? candidate.foundations?.borders ?? fallback.foundations.scales.borders,
+        shadows: scales?.shadows ?? candidate.foundations?.shadows ?? fallback.foundations.scales.shadows,
+        opacity: scales?.opacity ?? candidate.foundations?.opacity ?? fallback.foundations.scales.opacity,
+      },
+      layoutBase,
+      customFoundations: candidate.foundations?.customFoundations ?? candidate.foundations?.customGroups?.map((group) => ({ ...group, description: "Foundation personalizado" })) ?? [],
+    },
+    semanticTokens: candidate.semanticTokens ?? (isBlank ? [] : fallback.semanticTokens),
+    components,
+    componentVariants,
+    componentTokens,
+    themes: candidate.themes?.length ? candidate.themes : [{ id: "light", name: "Claro" }],
+    platforms,
+    implementationProfile: { ...fallback.implementationProfile, ...candidate.implementationProfile },
+  } as DesignSystemProject;
 }

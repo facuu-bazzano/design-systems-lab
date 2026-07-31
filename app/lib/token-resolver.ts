@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { DesignSystemProject, PlatformId, primaryTypographyFamily, requiredSemanticIds, resolveComponent, resolveLayout, resolveResponsiveScale, resolveSemantic, typographyFamilyForLevel, typographyLevelForRole } from "./model";
+import { componentTokensForVariant, DesignSystemProject, PlatformId, primaryTypographyFamily, requiredSemanticIds, resolveComponent, resolveLayout, resolveResponsiveScale, resolveSemantic, typographyFamilyForLevel, typographyLevelForRole, variantById } from "./model";
 
 export type ResolvedProjectTokens = {
   ready: boolean;
@@ -18,8 +18,8 @@ const componentMap = {
   buttonPressed: "button-primary-pressed",
   buttonDestructive: "button-destructive-bg",
   inputBorder: "input-border",
-  inputFocus: "input-focus-border",
-  inputError: "input-error-border",
+  inputFocus: "input-focus",
+  inputError: "input-error",
   selectedBackground: "control-selected-bg",
   cardRadius: "card-radius",
   controlRadius: "control-radius",
@@ -88,8 +88,8 @@ export function resolveProjectTokens(project: DesignSystemProject, themeId: stri
     "--ds-gutter": `${layout.gutter}px`,
     "--ds-max-width": `${layout.maxWidth}px`,
     "--ds-breakpoint": `${layout.breakpoint}px`,
-    "--ds-baseline": `${layout.baseline}px`,
-    "--ds-baseline-enabled": layout.baselineEnabled ? 1 : 0,
+    "--ds-vertical-rhythm": `${layout.verticalRhythmUnit}px`,
+    "--ds-vertical-rhythm-enabled": layout.verticalRhythmEnabled ? 1 : 0,
     "--ds-typography-multiplier": responsive.typography,
     "--ds-spacing-multiplier": responsive.spacing,
     "--ds-dimensions-multiplier": responsive.dimensions,
@@ -117,4 +117,27 @@ export function resolveProjectTokens(project: DesignSystemProject, themeId: stri
 
 export function resolvedTokenCss(snapshot: ResolvedProjectTokens) {
   return Object.entries(snapshot.cssVariables).filter(([, value]) => value).map(([name, value]) => `${name}:${value}`).join(";");
+}
+
+export function resolveVariantCssVariables(project: DesignSystemProject, variantId: string, themeId: string, platform: PlatformId): CSSProperties {
+  const variant = variantById(project, variantId);
+  if (!variant) return {};
+  const component = project.components.find((item) => item.id === variant.componentId);
+  if (!component) return {};
+  const result: Record<string, string> = {};
+  for (const token of componentTokensForVariant(project, variantId)) {
+    const value = resolveComponent(project, token.id, themeId, platform);
+    if (!value) continue;
+    result[`--ds-variant-${token.state}-${token.property}`] = value;
+    if (token.property.includes("radius")) result["--ds-control-radius"] = value;
+    if (token.state === "focus" && ["border", "ring"].includes(token.property)) result["--ds-focus"] = value;
+    if (token.state === "error" && ["border", "foreground", "background"].includes(token.property)) result["--ds-destructive"] = value;
+    if (component.key === "button") {
+      if (token.state === "default" && token.property === "background") result["--ds-action"] = value;
+      if (token.state === "default" && token.property === "foreground") result["--ds-on-action"] = value;
+      if (token.state === "hover" && token.property === "background") result["--ds-action-hover"] = value;
+      if (["pressed", "active"].includes(token.state) && token.property === "background") result["--ds-action-pressed"] = value;
+    }
+  }
+  return result as CSSProperties;
 }

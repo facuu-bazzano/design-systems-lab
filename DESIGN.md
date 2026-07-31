@@ -185,7 +185,7 @@ Catalog previews must use project-resolved variables. The catalog is both playgr
 
 ### Focused Foundation Previews
 
-Color, Tipografia, and Escalas y layout each include a compact live preview beside their configuration work. These previews isolate the decision being edited while still resolving the real project mode and platform. They must consume the shared resolver for semantic color roles, named type roles, responsive scale multipliers, spacing, dimensions, columns, margins, gutters, maximum width, and baseline grid. They are diagnostic aids, not separate mock implementations.
+Color, Tipografia, and Escalas y layout each include a compact live preview beside their configuration work. These previews isolate the decision being edited while still resolving the real project mode and platform. They must consume the shared resolver for semantic color roles, named type roles, responsive scale multipliers, spacing, dimensions, columns, margins, gutters, maximum width, and the optional vertical-rhythm overlay. They are diagnostic aids, not separate mock implementations.
 
 ### Scenario Suite
 
@@ -193,7 +193,11 @@ Escenarios is the system-level visual evidence workspace. It combines the real p
 
 Device previews are bounded frames, never long page screenshots. Their application chrome remains stable while the central content area scrolls independently, and reaching the end of that internal content must return scrolling to the Lab page instead of trapping it. Mobile may present the three flows together; Tablet and Desktop use a selected flow because their frames need more room. Only platforms enabled by the project are shown. Every frame exposes the real color modes and the resolved typography, spacing, dimensions, and grid values for its platform. Escenarios never invents local scale simulations: a selectable scale or density mode may appear only after it exists as a named, serializable project configuration created in Foundations.
 
-Catalog and Escenarios share the same project-token resolver and visual token contract, but they serve different purposes. Catalog documents deterministic state coverage; Escenarios owns a separate functional renderer whose controls must transition through their real interactive states while consuming those same resolved project tokens. The functional scenario library is not part of the Lab's internal Storybook. Missing required references remain an actionable pending state instead of receiving invented colors. Health links to the exact scenario evidence affected by a finding; it does not duplicate a miniature product mock.
+Catalog and Escenarios share one canonical project-component renderer and the same project-token resolver, while invoking it in different modes. Catalog combines a functional playground with deterministic, inert state snapshots; Escenarios uses the functional mode inside realistic flows. A selected project variant updates both surfaces and may override only renderer slots it actually knows. Project components, variants, and renderer output are never added to the Lab's internal Storybook. Missing required references remain an actionable pending state instead of receiving invented colors. Health links to the exact scenario evidence affected by a finding; it does not duplicate a miniature product mock.
+
+### Project component model
+
+The serializable v5 model separates component definitions, variants, and typed tokens. Every token belongs to one component and one variant and has a stable `component.variant.state.property` path. Variants may inherit from one variant of the same component without cycles. Custom components remain valid and exportable without a renderer; the Lab reports their lack of visual evidence as information, not as a health failure. Deletion with dependencies is atomic: replace references, cancel, or explicitly leave them pending for Health to diagnose.
 
 ### Experimental UI quality gate
 

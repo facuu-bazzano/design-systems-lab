@@ -9,7 +9,7 @@ import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { Bell, Check, ChevronDown, ChevronLeft, ChevronRight, CircleUserRound, LoaderCircle, MoreHorizontal } from "lucide-react";
-import { CatalogEntry } from "../lib/catalog-registry";
+import { CatalogEntry, PreviewStateDescriptor } from "../lib/catalog-registry";
 import { ProjectAlertPreview } from "./ProjectPreviews";
 
 function ScenarioActionButton() {
@@ -182,7 +182,7 @@ function ScenarioPresentational({ entry }: { entry: CatalogEntry }) {
   return null;
 }
 
-export function ScenarioComponentPreview({ entry, portalStyle }: { entry: CatalogEntry; portalStyle?: CSSProperties }) {
+function InteractiveProjectComponent({ entry, portalStyle }: { entry: CatalogEntry; portalStyle?: CSSProperties }) {
   if (entry.id === "button") return <ScenarioActionButton />;
   if (entry.id === "link") return <ScenarioLink />;
   if (entry.id === "icon") return <ScenarioIconButton />;
@@ -204,4 +204,53 @@ export function ScenarioComponentPreview({ entry, portalStyle }: { entry: Catalo
   if (entry.id === "carousel") return <ScenarioCarousel />;
   if (entry.id === "toast") return <ScenarioToast portalStyle={portalStyle} />;
   return <ScenarioPresentational entry={entry} />;
+}
+
+function SnapshotProjectComponent({ entry, state }: { entry: CatalogEntry; state: PreviewStateDescriptor }) {
+  const disabled = state.availability === "disabled";
+  const readonly = state.availability === "readonly";
+  const checked = state.selection === "checked" || state.selection === "selected";
+  const invalid = state.validation === "error";
+  const open = state.visibility === "open";
+  const className = `project-snapshot state-${state.id}`;
+  const status = invalid ? <small className="project-state-message" role="status">Error: revisá esta selección.</small> : null;
+  if (entry.id === "button") return <button type="button" className={`project-button ${className}`} disabled={disabled}>{state.variant === "destructive" ? "Eliminar" : "Continuar"}</button>;
+  if (entry.id === "link") return disabled ? <span className={`project-link ${className}`} aria-disabled="true">Ver detalle</span> : <a className={`project-link ${className}`} href="#catalog-evidence">Ver detalle</a>;
+  if (entry.id === "icon") return <button type="button" className={`project-icon-button ${className}`} disabled={disabled} aria-label="Notificaciones"><Bell /></button>;
+  if (entry.id === "input" || entry.id === "textarea") return <label className={`project-field-wrap ${className}`}><span>{entry.id === "textarea" ? "Descripción" : "Correo"}</span>{entry.id === "textarea" ? <textarea className="project-field" readOnly={readonly} disabled={disabled} aria-invalid={invalid || undefined} defaultValue={state.variant === "filled" ? "Notas del proyecto" : ""} /> : <input className="project-field" readOnly={readonly} disabled={disabled} aria-invalid={invalid || undefined} defaultValue={invalid ? "equipo@" : state.variant === "filled" ? "equipo@ejemplo.com" : ""} />}{invalid ? <small className="project-state-message">Error: ingresá un valor válido.</small> : <small>Ayuda contextual</small>}</label>;
+  if (entry.id === "select") return <div className={`${className} snapshot-select`}><button type="button" className="project-select" disabled={disabled} aria-expanded={open}>{state.variant === "filled" ? "Diseño" : "Seleccionar"} <ChevronDown /></button>{open ? <div className="snapshot-popup"><span>Diseño</span><span>Producto</span></div> : null}{status}</div>;
+  if (entry.id === "calendar") return <div className={`project-calendar ${className}`}><header><button type="button" disabled={disabled}><ChevronLeft /></button><b>Julio</b><button type="button" disabled={disabled}><ChevronRight /></button></header><div>{[21,22,23,24,25,26,27].map((day) => <button type="button" key={day} className={day === 24 ? "selected" : ""} disabled={disabled}>{day}</button>)}</div></div>;
+  if (entry.id === "checkbox") return <div className={`${className} snapshot-control`}><span role="checkbox" aria-checked={state.selection === "indeterminate" ? "mixed" : checked} aria-disabled={disabled || undefined} className="project-checkbox">{state.selection === "indeterminate" ? <i /> : checked ? <Check /> : null}</span><span>Aceptar términos</span>{status}</div>;
+  if (entry.id === "radio") return <div className={`${className} snapshot-control`}><span role="radio" aria-checked={checked} aria-disabled={disabled || undefined} className="project-radio">{checked ? <i /> : null}</span><span>Plan básico</span>{status}</div>;
+  if (entry.id === "switch") return <div className={`${className} snapshot-control`}><span role="switch" aria-checked={checked} aria-disabled={disabled || undefined} className="project-switch"><i /></span><span>Notificaciones</span></div>;
+  if (entry.id === "accordion") return <div className={`project-accordion ${className}`}><button type="button" aria-expanded={open} disabled={disabled}><ChevronDown /><span>¿Qué incluye?</span></button>{open ? <p>Contenido conectado a tokens.</p> : null}</div>;
+  if (entry.id === "breadcrumbs") return <nav className={`project-breadcrumbs ${className}`} aria-label="Migas">{disabled ? <span aria-disabled="true">Sistema</span> : <a href="#catalog-evidence">Sistema</a>}<ChevronRight />{disabled ? <span aria-disabled="true">Componentes</span> : <a href="#catalog-evidence">Componentes</a>}<ChevronRight /><span>Actual</span></nav>;
+  if (entry.id === "dropdown") return <div className={`${className} snapshot-select`}><button type="button" className="project-select" aria-expanded={open} disabled={disabled}>Acciones <MoreHorizontal /></button>{open ? <div className="snapshot-popup"><span>Editar</span><span>Duplicar</span></div> : null}</div>;
+  if (entry.id === "pagination") return <div className={`project-pagination ${className}`}><button type="button" disabled><ChevronLeft /></button>{[1,2,3].map((page) => <button type="button" key={page} className={(state.selection === "selected" ? page === 2 : page === 1) ? "selected" : ""} disabled={disabled}>{page}</button>)}<button type="button" disabled={disabled}><ChevronRight /></button></div>;
+  if (entry.id === "tabs") return <div className={`project-tabs ${className}`}><div role="tablist">{["Resumen", "Tokens", "Uso"].map((label, index) => <button type="button" role="tab" aria-selected={(state.selection === "selected" ? index === 1 : index === 0)} disabled={disabled} key={label}>{label}</button>)}</div><p>Contenido de la pestaña.</p></div>;
+  if (entry.id === "alert") return <ProjectAlertPreview state={state.variant === "info" ? "Info" : state.validation === "success" ? "Success" : state.validation === "error" ? "Error" : "Warning"} />;
+  if (entry.id === "badge") return <span className={`project-badge ${className}`}>{state.label}</span>;
+  if (entry.id === "loading") return <LoaderCircle className={`project-spinner ${className}`} aria-label="Cargando" />;
+  if (entry.id === "progress") return <div className={`project-progress ${className}`}><span style={{ width: state.validation === "success" ? "100%" : "64%" }} /></div>;
+  if (entry.id === "skeleton") return <div className={`project-skeleton ${className} ${state.motion === "reduced" ? "reduce-motion" : ""}`}><i /><i /><i /></div>;
+  if (entry.id === "tooltip") return <div className={`${className} snapshot-tooltip`}><button type="button">Ayuda</button>{open ? <span role="tooltip">Información contextual</span> : null}</div>;
+  if (entry.id === "avatar") return state.content === "group" ? <div className={`project-avatar-group ${className}`}><span>AL</span><span>MG</span><span>+2</span></div> : <div className={`project-avatar ${className}`}>{state.content === "image" ? <CircleUserRound /> : <span>AL</span>}</div>;
+  if (entry.id === "card") return <article className={`project-card ${className}`}><b>Cobertura</b><p>Roles esenciales conectados.</p><strong>100%</strong></article>;
+  if (entry.id === "carousel") return <div className={`project-carousel ${className}`}><button type="button" disabled={disabled}><ChevronLeft /></button><div>01</div><div>02</div><button type="button" disabled={disabled}><ChevronRight /></button></div>;
+  if (entry.id === "divider") return <hr className={`project-divider ${className}`} />;
+  if (entry.id === "image") return <div className={`project-image ${className}`}>{state.content === "fallback" ? "Imagen no disponible" : "16:9"}</div>;
+  if (entry.id === "list") return <div className={`project-list ${className}`}>{state.content === "empty" ? <p>Sin elementos</p> : <><button type="button" disabled={disabled}>Paleta primaria <ChevronRight /></button><button type="button" disabled={disabled}>Tipografía <ChevronRight /></button></>}</div>;
+  if (entry.id === "modal") return <div className={`${className} snapshot-modal`}><button type="button">Abrir modal</button>{open ? <section role="dialog" aria-label="Confirmar cambios"><b>Confirmar cambios</b><p>Revisá la configuración.</p></section> : null}</div>;
+  if (entry.id === "table") return <table className={`project-table ${className}`}><thead><tr><th>Token</th><th>Estado</th></tr></thead><tbody>{state.content === "empty" ? <tr><td colSpan={2}>Sin resultados</td></tr> : <><tr className={state.selection === "selected" ? "selected" : ""}><td>surface.default</td><td>Asignado</td></tr><tr><td>focus.ring</td><td>Asignado</td></tr></>}</tbody></table>;
+  if (entry.id === "toast") return <ProjectAlertPreview state={state.validation === "error" ? "Error" : state.validation === "warning" ? "Warning" : state.validation === "success" ? "Success" : "Info"} />;
+  return <ScenarioPresentational entry={entry} />;
+}
+
+export function ProjectComponentRenderer({ entry, mode = "playground", state, portalStyle, variantStyle }: { entry: CatalogEntry; mode?: "playground" | "snapshot"; state?: PreviewStateDescriptor; portalStyle?: CSSProperties; variantStyle?: CSSProperties }) {
+  if (mode === "snapshot" && state) return <div className="project-renderer-snapshot" style={variantStyle} inert aria-label={`${entry.name}: ${state.label}`}><SnapshotProjectComponent entry={entry} state={state} /></div>;
+  return <div className="project-renderer-playground" style={variantStyle}><InteractiveProjectComponent entry={entry} portalStyle={{ ...portalStyle, ...variantStyle }} /></div>;
+}
+
+export function ScenarioComponentPreview({ entry, portalStyle, variantStyle }: { entry: CatalogEntry; portalStyle?: CSSProperties; variantStyle?: CSSProperties }) {
+  return <ProjectComponentRenderer entry={entry} mode="playground" portalStyle={portalStyle} variantStyle={variantStyle} />;
 }

@@ -1,9 +1,15 @@
 import { analyzeProject } from "./health";
 import { catalogRegistry } from "./catalog-registry";
-import { DesignSystemProject, platformOrder, primaryTypographyFamily, resolveLayout, resolveResponsiveScale, typographyFamilyForLevel } from "./model";
+import { componentById, componentTokenPath, DesignSystemProject, platformOrder, primaryTypographyFamily, resolveLayout, resolveResponsiveScale, typographyFamilyForLevel, variantById } from "./model";
 import { resolveProjectTokens, resolvedTokenCss } from "./token-resolver";
 
 export type ExportCategory = "colors" | "typography" | "scales" | "semantics" | "components" | "themes" | "platforms";
+export function expandExportCategories(categories: ExportCategory[]) {
+  const selected = new Set(categories);
+  if (selected.has("components")) { selected.add("semantics"); selected.add("scales"); selected.add("colors"); }
+  if (selected.has("semantics")) selected.add("colors");
+  return [...selected] as ExportCategory[];
+}
 const slugify = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "design-system";
 const safe = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character] || character);
 const paletteSteps = (palette: DesignSystemProject["foundations"]["colors"][number]) => Object.keys(palette.scale).sort((a, b) => Number(a) - Number(b));
@@ -11,7 +17,7 @@ export function downloadText(filename: string, content: string, type = "applicat
 export function projectFilename(project: DesignSystemProject, suffix: string) { return `${slugify(project.meta.name)}${suffix}`; }
 
 export function buildTokenSubset(project: DesignSystemProject, categories: ExportCategory[]) {
-  const selected = new Set(categories);
+  const selected = new Set(expandExportCategories(categories));
   const typography = project.foundations.typography;
   const primaryFamily = primaryTypographyFamily(typography);
   return {
@@ -21,14 +27,14 @@ export function buildTokenSubset(project: DesignSystemProject, categories: Expor
     ...(selected.has("typography") ? { typography: { family: { $type: "fontFamily", $value: primaryFamily?.family || "system-ui", $description: "Familia principal (alias de compatibilidad)" }, families: Object.fromEntries(typography.families.map((family) => [slugify(family.family), { $type: "fontFamily", $value: family.family, $extensions: { source: family.source, weights: family.availableWeights, styles: family.styles, visibility: "internal" } }])), levels: Object.fromEntries(typography.levels.map((level) => { const family = typographyFamilyForLevel(typography, level); return [slugify(level.name), { $type: "typography", $value: { fontFamily: family?.family || primaryFamily?.family || "system-ui", fontSize: `${level.size}px`, fontWeight: level.weight, lineHeight: level.lineHeight, letterSpacing: `${level.tracking}em` }, $extensions: { familyId: level.familyId } }]; })) } } : {}),
     ...(selected.has("scales") ? { scales: project.foundations.scales, layout: project.foundations.layoutBase } : {}),
     ...(selected.has("semantics") ? { semantic: Object.fromEntries(project.semanticTokens.map((token) => [token.name, { $type: "color", $value: token.defaultRef, $extensions: { modes: token.themeRefs, platforms: token.platformRefs }, $description: token.description }])) } : {}),
-    ...(selected.has("components") ? { component: Object.fromEntries(project.componentTokens.map((token) => [token.name, { $value: token.reference, $extensions: { platforms: token.platformRefs }, $description: token.description }])) } : {}),
+    ...(selected.has("components") ? { component: { definitions: project.components, variants: project.componentVariants, tokens: Object.fromEntries(project.componentTokens.map((token) => [componentTokenPath(project, token), { $type: token.valueType, $value: token.reference, $extensions: { componentId: token.componentId, variantId: token.variantId, state: token.state, property: token.property, platforms: token.platformRefs }, $description: token.description }])) } } : {}),
     ...(selected.has("themes") ? { modes: project.themes } : {}),
     ...(selected.has("platforms") ? { platforms: Object.fromEntries(platformOrder.filter((id) => project.platforms[id].enabled).map((id) => [id, { ...project.platforms[id], resolvedLayout: resolveLayout(project, id), resolvedScales: resolveResponsiveScale(project, id) }])) } : {}),
   };
 }
 
 export function buildCss(project: DesignSystemProject, categories: ExportCategory[]) {
-  const selected = new Set(categories); const snapshot = resolveProjectTokens(project, project.themes[0]?.id || "light", "mobile");
+  const selected = new Set(expandExportCategories(categories)); const snapshot = resolveProjectTokens(project, project.themes[0]?.id || "light", "mobile");
   const foundations = selected.has("colors") ? project.foundations.colors.flatMap((palette) => paletteSteps(palette).map((step) => `  --color-${slugify(palette.name)}-${step}: ${palette.scale[step]};`)) : [];
   const scales = selected.has("scales") ? Object.entries(project.foundations.scales).flatMap(([group, tokens]) => tokens.map((token) => `  --${group}-${slugify(token.name)}: ${token.value};`)) : [];
   const resolved = (selected.has("semantics") || selected.has("components") || selected.has("typography")) ? Object.entries(snapshot.cssVariables).filter(([name, value]) => value && (selected.has("semantics") || selected.has("components") || name.startsWith("--ds-font"))).map(([name, value]) => `  ${name}: ${value};`) : [];
@@ -36,7 +42,7 @@ export function buildCss(project: DesignSystemProject, categories: ExportCategor
   return `:root {\n${[...foundations, ...scales, ...resolved].join("\n")}\n}\n\n${modes}\n`;
 }
 
-const componentDocs = catalogRegistry.map((entry) => [entry.name, entry.purpose, entry.states.join(", "), [...entry.componentTokens, ...entry.semanticTokens].join(", ")] as const);
+const componentDocs = catalogRegistry.map((entry) => [entry.name, entry.purpose, entry.states.map((state) => state.label).join(", "), [...entry.componentTokens, ...entry.semanticTokens].join(", ")] as const);
 
 function docsCatalog(project: DesignSystemProject, themeId: string) {
   const snapshot = resolveProjectTokens(project, themeId, "mobile");
@@ -49,7 +55,7 @@ export function buildDocumentation(project: DesignSystemProject) {
   const palettes = project.foundations.colors.map((palette) => `<article class="palette"><h3>${safe(palette.name)}</h3><div>${paletteSteps(palette).map((step) => `<span style="background:${palette.scale[step]}"><b>${step}</b><code>${palette.scale[step]}</code></span>`).join("")}</div></article>`).join("") || `<div class="pending"><b>Color pendiente</b><p>Este proyecto todavía no tiene paletas.</p></div>`;
   const scaleCards = Object.entries(project.foundations.scales).map(([group, tokens]) => `<article class="metric"><b>${safe(group)}</b><p>${tokens.map((token) => `${safe(token.name)}: ${safe(token.value)}`).join(" · ")}</p></article>`).join("");
   const semanticRows = project.semanticTokens.map((token) => `<tr><td><code>${safe(token.name)}</code></td><td>${safe(token.description)}</td><td>${safe(token.defaultRef)}</td><td><span class="ok">Asignado</span></td></tr>`).join("") || `<tr><td colspan="4">Configuración pendiente</td></tr>`;
-  const componentRows = project.componentTokens.map((token) => `<tr><td><code>${safe(token.name)}</code></td><td>${safe(token.component)}</td><td><code>${safe(token.reference)}</code></td><td>${safe(token.description)}</td></tr>`).join("") || `<tr><td colspan="4">Configuración pendiente</td></tr>`;
+  const componentRows = project.componentTokens.map((token) => { const component = componentById(project, token.componentId); const variant = variantById(project, token.variantId); return `<tr><td><code>${safe(componentTokenPath(project, token))}</code></td><td>${safe(component?.name || "Componente")} · ${safe(variant?.name || "Default")}</td><td><code>${safe(token.reference)}</code></td><td>${safe(token.description)}</td></tr>`; }).join("") || `<tr><td colspan="4">Configuración pendiente</td></tr>`;
   const typography = project.foundations.typography;
   const typographyFamilies = typography.families.map((family) => { const usage = typography.levels.filter((level) => level.familyId === family.id).length; return `<article class="metric" style="font-family:'${safe(family.family)}',sans-serif"><b>${safe(family.family)}</b><p>${family.source === "google" ? "Google Fonts" : family.source === "system" ? "Común" : "Personalizada"} · ${usage} ${usage === 1 ? "estilo" : "estilos"}</p></article>`; }).join("");
   const typographyLevels = typography.levels.map((level) => { const family = typographyFamilyForLevel(typography, level); return `<article class="metric" style="font-family:'${safe(family?.family || "system-ui")}',sans-serif"><b>${safe(level.name)}</b><p>${safe(family?.family || "Sin familia")} · ${level.size}px / ${level.lineHeight} · ${level.weight}</p><span style="font-size:${Math.min(level.size, 40)}px;line-height:${level.lineHeight}">Diseñar con coherencia.</span></article>`; }).join("");
