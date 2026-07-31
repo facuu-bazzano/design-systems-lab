@@ -191,7 +191,13 @@ Color, Tipografia, and Escalas y layout each include a compact live preview besi
 
 Escenarios is the system-level visual evidence workspace. It combines the real project foundations and tokens in three realistic flows whose registry covers every catalog component. Mobile, Tablet, and Desktop must use genuinely different information structures; resizing one generic mock is not an acceptable platform comparison. Mode comparison must render each project mode on the same selected platform.
 
+Device previews are bounded frames, never long page screenshots. Their application chrome remains stable while the central content area scrolls independently. Mobile may present the three flows together; Tablet and Desktop use a selected flow because their frames need more room. Only platforms enabled by the project are shown. Every frame exposes its available color modes beside the platform label and may offer clearly identified local scale simulations; simulations never mutate or masquerade as exported project modes.
+
 Catalog and Escenarios share one canonical component-preview renderer. Scenario modules may compose those primitives, but may not restyle or fork their semantic states. Missing required references remain an actionable pending state instead of receiving invented colors. Health links to the exact scenario evidence affected by a finding; it does not duplicate a miniature product mock.
+
+### Experimental UI quality gate
+
+Changes to the experimental interface are not complete when they merely compile. Before handoff, run the applicable Impeccable playbook and the smallest relevant UI Skill, then verify the real surface in light/dark, supported viewport widths, keyboard operation, internal scrolling, overflow, and Storybook. Record any check that could not be run instead of claiming it passed. A user-reported instance of a systemic component or spacing problem requires auditing every equivalent instance, not only the reported selector.
 
 ### Health View
 

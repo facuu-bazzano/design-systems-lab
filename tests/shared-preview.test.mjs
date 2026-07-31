@@ -35,6 +35,16 @@ test("scenario suite covers the complete catalog and separates platform structur
   assert.match(css, /platform-tablet \.scenario-product-shell/);
   assert.match(css, /platform-desktop \.scenario-product-shell/);
   assert.match(scenarios, /showGrid/);
+  assert.match(scenarios, /project\.platforms\[id\]\?\.enabled/);
+  assert.match(scenarios, /mobileSuite.*scenarioRegistry\.map/s);
+  assert.match(scenarios, /Modo de color para/);
+  assert.match(scenarios, /Simular escala/);
+  assert.match(css, /\.scenario-product-main\{[^}]*overflow:auto/);
+  assert.match(css, /\.scenario-device-stage\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(css, /\.platform-mobile \.scenario-product-shell\{[^}]*height:720px/);
+  assert.match(css, /\.platform-tablet \.scenario-product-shell\{[^}]*grid-template-columns:76px/);
+  assert.match(css, /\.platform-desktop \.scenario-product-shell\{[^}]*width:100%;max-width:1280px/);
+  assert.match(css, /\.platform-desktop \.scenario-product-shell\{[^}]*grid-template-columns:210px[^}]*210px/);
 });
 
 test("the single resolver exports typography, spacing and layout variables", async () => {
