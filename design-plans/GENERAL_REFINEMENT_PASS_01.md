@@ -15,6 +15,15 @@ Esta pasada reúne las observaciones realizadas después de validar los Escenari
 
 La implementación se considerará terminada únicamente si el comportamiento es coherente en claro/oscuro, desktop/mobile, teclado y lectores de pantalla, y si Catálogo, Escenarios, Salud, exportaciones y documentación consumen el mismo modelo sin valores inventados.
 
+### 1.1 Frontera entre las dos bibliotecas
+
+El proyecto contiene dos universos que no deben mezclarse:
+
+1. **Biblioteca interna del Laboratorio.** Incluye Button, Switch, menús, campos y demás componentes usados para construir la interfaz de la herramienta. Es la única biblioteca que se documenta y prueba en Storybook.
+2. **Sistema de diseño creado por el usuario.** Incluye foundations, tokens, componentes y variantes destinados a Figma y a las exportaciones del proyecto. Vive en el modelo serializable del proyecto, Catálogo, Escenarios, Salud, documentación HTML y paquetes de handoff. No se incorpora a Storybook.
+
+Storybook no debe generar historias dinámicas, persistir componentes del proyecto ni actuar como documentación del sistema de diseño creado. Cuando este documento menciona Storybook, se refiere exclusivamente a verificar componentes internos del Laboratorio que hayan sido modificados durante la implementación.
+
 ## 2. Diagnóstico verificado
 
 ### 2.1 Configuración del proyecto
@@ -205,6 +214,14 @@ type ComponentVariant = {
   visibleInCatalog: boolean;
 };
 
+type ProjectComponentDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  source: "catalog" | "custom";
+  rendererKey?: string;
+};
+
 type ComponentToken = {
   id: string;
   name: string;
@@ -227,10 +244,12 @@ El identificador exportado se deriva de una ruta estable, por ejemplo:
 - Primer nivel: componente.
 - Segundo nivel: variantes del componente.
 - Tercer nivel: tokens de la variante.
+- Debe existir una acción global “Agregar componente” que permita crear un componente personalizado fuera del inventario inicial.
+- Un componente personalizado puede crear, duplicar, renombrar y eliminar variantes y tokens con la misma estructura que uno predefinido.
 - Acción contextual “Agregar variante” dentro del componente seleccionado.
 - Plantillas iniciales para Button: Primary, Secondary, Tertiary, Destructive y Custom.
 - Acciones: crear, duplicar, renombrar, heredar, eliminar y mostrar/ocultar en Catálogo.
-- “Agregar token” debe crear el token dentro de la variante activa, no en “Nuevo componente”.
+- “Agregar token” debe crear el token dentro de la variante activa del componente seleccionado. Esta regla corrige la ubicación del token, pero no elimina la acción independiente “Agregar componente”.
 - Propiedad y estado se seleccionan mediante opciones controladas; el nombre técnico se previsualiza antes de crear.
 - Evitar rutas duplicadas y referencias rotas.
 
@@ -239,12 +258,15 @@ El identificador exportado se deriva de una ruta estable, por ejemplo:
 - Catálogo incorpora selector de variante para el componente.
 - Las variantes visibles reutilizan el renderer funcional existente; no crean una segunda biblioteca de componentes.
 - El renderer recibe un mapa de tokens de la variante activa.
-- Una variante personalizada puede verse en Catálogo apenas tenga las referencias mínimas resueltas.
+- Una variante personalizada de un componente predefinido puede verse en Catálogo apenas tenga las referencias mínimas resueltas y utilice su renderer existente.
+- Un componente completamente personalizado, sin `rendererKey`, sigue siendo válido, editable y exportable, pero no inventa una representación visual ni aparece como preview funcional en Catálogo.
+- En el editor debe indicarse de forma explícita “Sin preview disponible” para esos componentes; no debe tratarse como error ni como token sin consumidor.
+- Si en el futuro se incorpora un renderer compatible, el componente puede mapearse al Catálogo sin cambiar sus identificadores ni perder sus tokens.
 - Escenarios elige una variante apropiada por caso y permite cambiarla cuando aporte valor a la evaluación.
 
 #### Salud y exportación
 
-- Salud informa variantes incompletas, referencias rotas, rutas duplicadas y tokens sin consumidor.
+- Salud informa variantes incompletas, referencias rotas y rutas duplicadas. Distingue entre un token huérfano accidental y un componente personalizado exportable sin renderer.
 - Export JSON/CSS conserva la jerarquía componente / variante / estado / propiedad.
 - El paquete Figma MCP genera colecciones y nombres equivalentes, sin aplanar la intención.
 - La documentación HTML lista variantes, estados y tokens resueltos.
@@ -308,6 +330,9 @@ El orden evita diseñar Catálogo o Escenarios sobre una estructura de tokens qu
 - Es posible crear Secondary y Tertiary dentro de Button.
 - Cada variante puede crear y editar sus propios tokens.
 - Las variantes resueltas aparecen en Catálogo usando el renderer funcional.
+- Es posible crear un componente personalizado que no pertenezca al catálogo inicial.
+- Ese componente puede contener variantes y tokens, se conserva en el proyecto y se incluye en JSON, CSS, documentación HTML y Figma MCP aunque no tenga preview.
+- La ausencia de renderer se comunica como limitación visual, no bloquea la creación ni la exportación.
 - Salud detecta faltantes por variante.
 - JSON, CSS, documentación y Figma MCP conservan la jerarquía.
 - Un proyecto v4 migra sin pérdida de datos.
@@ -322,14 +347,14 @@ El orden evita diseñar Catálogo o Escenarios sobre una estructura de tokens qu
 - Frames Mobile, Mobile horizontal, Tablet y Desktop.
 - Teclado, foco, `aria-current`, diálogos y menús.
 - Verificación geométrica de grilla: límites, spans, gutters y baseline.
-- Storybook únicamente para los componentes internos modificados: Button, IconButton, ProjectMenu, ExportMenu y Switch.
+- Storybook únicamente para los componentes internos modificados: Button, IconButton, ProjectMenu, ExportMenu y Switch. No se crean stories para componentes, variantes ni tokens producidos por el usuario.
 - Impeccable y UI Skills como gate final, clasificando falsos positivos en vez de ignorarlos silenciosamente.
 - No cerrar la tarea con solapamientos, overflow global, errores de consola o referencias sin resolver.
 
 ## 7. Fuera de alcance de esta pasada
 
 - Sincronización directa y automática con Figma desde el navegador.
-- Construcción arbitraria de componentes completamente nuevos sin renderer base.
+- Construcción automática de un preview funcional para componentes personalizados sin renderer base. Su creación, edición, persistencia y exportación sí forman parte de esta pasada.
 - Reemplazo de la librería interna del Laboratorio.
 - Cambios visuales no relacionados en Color, Tipografía o Salud.
 
