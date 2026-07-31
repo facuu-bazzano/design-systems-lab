@@ -136,15 +136,24 @@ test("the shared brand mark replaces the visible laboratory wordmark", async () 
 });
 
 test("catalog states target the rendered control and variants propagate to scenarios", async () => {
+  const catalog = await readFile(new URL("app/components/Catalog.tsx", projectRoot), "utf8");
   const scenarios = await readFile(new URL("app/components/ScenarioExplorer.tsx", projectRoot), "utf8");
   const previews = await readFile(new URL("app/components/ScenarioComponentPreview.tsx", projectRoot), "utf8");
   const css = await readFile(new URL("app/globals.css", projectRoot), "utf8");
 
   assert.match(previews, /mode === "snapshot"/);
   assert.match(previews, /inert aria-label/);
+  assert.match(previews, /closest\("\.scenario-product-shell, \.catalog-spec"\)/);
+  assert.match(previews, /data-component-id=\{entry\.id\}/);
+  assert.match(catalog, /item\.key === name \|\| componentTokenPath/);
+  assert.match(catalog, /structuralVariantKeys/);
   assert.match(scenarios, /resolveVariantCssVariables/);
   assert.match(scenarios, /Variante de|label="Variante"/);
   assert.match(css, /\.project-snapshot\.state-hover :is\(\.project-button/);
   assert.match(css, /\.project-snapshot\.state-focus :is\(\.project-button/);
   assert.match(css, /\.project-snapshot\.state-checked \.project-switch/);
+  assert.match(css, /\.project-renderer-playground \.project-button:not\(:disabled\):hover/);
+  assert.match(css, /\.project-renderer-playground :is\(\.project-field,\.project-select\):hover/);
+  assert.match(css, /\.project-renderer-playground :is\(\.project-checkbox,\.project-radio,\.project-switch\):hover/);
+  assert.match(css, /\.catalog-token-rows>div\.pending\{[^}]*color-mix/);
 });

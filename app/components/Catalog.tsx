@@ -86,7 +86,7 @@ export function ProjectComponentPreview({ entry, state, portalStyle }: { entry: 
 
 function TokenInspector({ entry, project, theme, platform, onOpenTokens }: { entry: CatalogEntry; project: DesignSystemProject; theme: string; platform: PlatformId; onOpenTokens: Props["onOpenTokens"] }) {
   const componentRows = entry.componentTokens.map((name) => {
-    const token = project.componentTokens.find((item) => componentTokenPath(project, item) === name);
+    const token = project.componentTokens.find((item) => item.key === name || componentTokenPath(project, item) === name);
     const semanticId = token?.reference.startsWith("semantic:") ? token.reference.slice(9) : "";
     const semantic = semanticId ? semanticById(project, semanticId) : undefined;
     const foundation = semantic?.platformRefs[platform] || semantic?.themeRefs[theme] || semantic?.defaultRef || token?.reference.replace("primitive:", "") || "";
@@ -104,9 +104,12 @@ function TokenInspector({ entry, project, theme, platform, onOpenTokens }: { ent
 
 function ComponentSpec({ entry, project, theme, platform, portalStyle, onOpenTokens }: { entry: CatalogEntry; project: DesignSystemProject; theme: string; platform: PlatformId; portalStyle?: CSSProperties; onOpenTokens: Props["onOpenTokens"] }) {
   const definition = project.components.find((component) => component.rendererKey === entry.id || component.key === entry.id);
-  const variants = definition ? project.componentVariants.filter((variant) => variant.componentId === definition.id && variant.visibleInCatalog) : [];
-  const [variantId, setVariantId] = useState(variants[0]?.id || "");
-  const activeVariantId = variants.some((variant) => variant.id === variantId) ? variantId : variants[0]?.id || "";
+  const componentVariants = definition ? project.componentVariants.filter((variant) => variant.componentId === definition.id) : [];
+  const structuralVariantKeys = new Set(["default", "track", "thumb", "focus", "item", "radius", "container", "header", "row", "divider", "menu"]);
+  const variants = componentVariants.filter((variant) => variant.visibleInCatalog && (entry.id === "button" || !structuralVariantKeys.has(variant.key)));
+  const fallbackVariant = componentVariants.find((variant) => variant.key === "default") || componentVariants[0];
+  const [variantId, setVariantId] = useState(variants[0]?.id || fallbackVariant?.id || "");
+  const activeVariantId = componentVariants.some((variant) => variant.id === variantId) ? variantId : variants[0]?.id || fallbackVariant?.id || "";
   const variantStyle = activeVariantId ? resolveVariantCssVariables(project, activeVariantId, theme, platform) : undefined;
   return <Card className="catalog-spec">
     <div className="catalog-spec-head"><div><h3>{entry.name}</h3><p>{entry.purpose}</p></div>{variants.length > 1 ? <Select aria-label={`Variante de ${entry.name}`} value={activeVariantId} onValueChange={setVariantId} options={variants.map((variant) => ({ value: variant.id, label: variant.name, meta: variant.key }))} /> : null}</div>

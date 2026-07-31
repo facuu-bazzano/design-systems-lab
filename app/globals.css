@@ -428,3 +428,63 @@
 .project-snapshot.state-hover :is(.project-checkbox,.project-radio,.project-switch){border-color:var(--ds-action);background:color-mix(in srgb,var(--ds-selected-surface) 48%,var(--ds-surface-raised))}.project-snapshot.state-error :is(.project-field,.project-select,.project-checkbox,.project-radio,.project-switch){border-color:var(--ds-destructive);box-shadow:0 0 0 1px color-mix(in srgb,var(--ds-destructive) 35%,transparent)}.project-snapshot.state-readonly .project-field{background:color-mix(in srgb,var(--ds-disabled-surface) 65%,var(--ds-surface-raised));border-style:dashed}.project-snapshot.state-disabled :is(.project-checkbox,.project-radio,.project-switch){border-color:var(--ds-border);background:var(--ds-disabled-surface);color:var(--ds-disabled-content)}
 .project-calendar.project-snapshot.state-focus,.project-accordion.project-snapshot.state-focus{outline:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-focus) 38%,transparent)}.project-tabs.project-snapshot.state-selected [role=tab][aria-selected=true]{color:var(--ds-text);box-shadow:inset 0 -2px var(--ds-selected-border)}.project-tabs.project-snapshot.state-disabled [role=tab]{color:var(--ds-disabled-content)}.project-list.project-snapshot.state-selected button:first-child{background:var(--ds-selected-surface);box-shadow:inset 3px 0 var(--ds-selected-border)}.project-table.project-snapshot.state-selected tbody tr.selected{background:var(--ds-selected-surface);box-shadow:inset 3px 0 var(--ds-selected-border);font-weight:650}.project-breadcrumbs.project-snapshot.state-disabled{color:var(--ds-disabled-content)}.project-breadcrumbs.project-snapshot.state-disabled [aria-disabled=true]{color:inherit}.project-spinner.state-reduced-motion{animation:none}
 /* Canonical project state-matrix contract shared by every catalog card. */
+.catalog-spec{position:relative}
+.catalog-state-matrix{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.catalog-playground>div{overflow:visible}
+.project-renderer-playground{width:min(100%,520px);display:grid;place-items:center}
+.project-renderer-playground>:first-child{min-width:0}
+.project-renderer-playground[data-component-id="input"],.project-renderer-playground[data-component-id="textarea"],.project-renderer-playground[data-component-id="select"],.project-renderer-playground[data-component-id="accordion"],.project-renderer-playground[data-component-id="tabs"],.project-renderer-playground[data-component-id="card"],.project-renderer-playground[data-component-id="table"],.project-renderer-playground[data-component-id="list"],.project-renderer-playground[data-component-id="carousel"]{place-items:stretch}
+.scenario-interactive-stack{display:grid;justify-items:center;gap:8px}
+
+/* Live project controls and their deterministic snapshots use one state language. */
+.project-button,.project-icon-button,.project-modal-demo,.project-select,.project-field,.project-checkbox,.project-radio,.project-switch,.project-tabs [role=tab],.project-calendar button,.project-pagination button,.project-list button,.project-card,.project-accordion button,.project-breadcrumbs a,.scenario-carousel-live>button{transition:transform 140ms ease-out,background-color 140ms ease-out,border-color 140ms ease-out,color 140ms ease-out,box-shadow 140ms ease-out}
+.project-renderer-playground .project-button:not(:disabled):hover{background:var(--ds-action-hover)}
+.project-renderer-playground .project-button:not(:disabled):active{background:var(--ds-action-pressed);transform:translateY(1px) scale(.98)}
+.project-renderer-playground .project-link:hover,.project-renderer-playground .project-breadcrumbs a:hover{color:var(--ds-action-hover);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.project-renderer-playground .project-icon-button:not(:disabled):hover,.project-renderer-playground .project-modal-demo:not(:disabled):hover,.project-renderer-playground .project-pagination button:not(:disabled):hover,.project-renderer-playground .project-calendar button:not(:disabled):hover,.project-renderer-playground .project-list button:not(:disabled):hover,.project-renderer-playground .project-accordion button:not(:disabled):hover,.project-renderer-playground .project-tabs [role=tab]:not(:disabled):hover,.project-renderer-playground .scenario-carousel-live>button:not(:disabled):hover{background:var(--ds-selected-surface);border-color:var(--ds-selected-border)}
+.project-renderer-playground :is(.project-field,.project-select):hover{border-color:var(--ds-border-strong)}
+.project-renderer-playground .project-select[data-state="open"]{border-color:var(--ds-input-focus,var(--ds-focus));box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-focus) 25%,transparent)}
+.project-renderer-playground :is(.project-button,.project-link,.project-icon-button,.project-modal-demo,.project-select,.project-field,.project-checkbox,.project-radio,.project-switch,.project-tabs [role=tab],.project-calendar button,.project-pagination button,.project-list button,.project-card,.project-accordion button,.project-breadcrumbs a,.scenario-carousel-live>button):focus-visible{outline:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-focus) 38%,transparent)}
+.project-checkbox,.project-radio{border-color:var(--ds-border-strong)}
+.project-checkbox[data-state=checked],.project-radio[data-state=checked]{border-color:var(--ds-selected-border)}
+.project-renderer-playground :is(.project-checkbox,.project-radio,.project-switch):hover{border-color:var(--ds-action)}
+.project-switch{box-sizing:border-box;border:1px solid var(--ds-border-strong)}
+.project-switch[data-state=checked]{border-color:var(--ds-selected-border)}
+.project-switch span{transition:transform 150ms ease-out}
+.project-tabs [role=tab][aria-selected=true]{color:var(--ds-text);box-shadow:inset 0 -2px var(--ds-selected-border)}
+.project-card:hover{border-color:var(--ds-selected-border)}
+.project-table tbody tr,.project-list button{transition:background-color 140ms ease-out,box-shadow 140ms ease-out}
+.project-renderer-playground .project-table tbody tr:hover,.project-renderer-playground .project-list button:hover{background:var(--ds-selected-surface)}
+.project-table tbody tr.selected,.project-list button.selected{background:var(--ds-selected-surface);box-shadow:inset 3px 0 var(--ds-selected-border)}
+.project-accordion button{width:100%;display:flex;align-items:center;gap:7px;padding:5px;border:0;border-radius:calc(var(--ds-control-radius) - 2px);background:transparent;color:var(--ds-text);font:inherit;text-align:left;cursor:pointer}
+.project-accordion button svg{width:16px;transition:transform 150ms ease-out}.project-accordion button[aria-expanded=true] svg{transform:rotate(180deg)}
+.project-carousel button:disabled,.scenario-carousel-live>button:disabled,.project-pagination button:disabled,.project-calendar button:disabled{opacity:1;border-color:var(--ds-border);background:var(--ds-disabled-surface);color:var(--ds-disabled-content);cursor:not-allowed}
+.project-avatar span,.project-avatar-group span{font-weight:700}
+.project-image{box-sizing:border-box;padding:10px;text-align:center;line-height:1.35}
+.snapshot-modal>button{justify-self:start}.snapshot-modal .scenario-modal-panel{width:100%;padding:12px;animation:none}
+
+/* Forced states mirror the live rules without injecting broad purple fills. */
+.project-snapshot.state-hover .project-field,.project-snapshot.state-hover .project-select{border-color:var(--ds-border-strong);background:var(--ds-surface-raised)}
+.project-snapshot.state-hover :is(.project-checkbox,.project-radio,.project-switch){border-color:var(--ds-action);background:var(--ds-surface-raised)}
+.project-snapshot.state-hover .project-switch{background:var(--ds-disabled-surface)}
+.project-button.project-snapshot.state-hover{background:var(--ds-action-hover)}
+.project-link.project-snapshot.state-hover{color:var(--ds-action-hover);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.project-tabs.project-snapshot.state-hover [role=tab]:first-child,.project-accordion.project-snapshot.state-hover button,.project-calendar.project-snapshot.state-hover button:not(:disabled):not(.selected),.project-pagination.project-snapshot.state-hover button:not(:disabled),.project-list.project-snapshot.state-hover button:first-child{border-color:var(--ds-selected-border);background:var(--ds-selected-surface)}
+.project-breadcrumbs.project-snapshot.state-hover a:first-child{color:var(--ds-action-hover);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.project-tabs.project-snapshot.state-focus [role=tab]:first-child,.project-accordion.project-snapshot.state-focus button,.project-calendar.project-snapshot.state-focus button:not(:disabled):first-child,.project-pagination.project-snapshot.state-focus button:not(:disabled):first-child,.project-breadcrumbs.project-snapshot.state-focus a:first-child,.project-list.project-snapshot.state-focus button:first-child{outline:0;box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-focus) 38%,transparent)}
+.project-tabs.project-snapshot.state-focus,.project-accordion.project-snapshot.state-focus,.project-calendar.project-snapshot.state-focus{box-shadow:none}
+
+/* Pending rows remain actionable without becoming unreadable warning slabs. */
+.catalog-token-rows>div.pending{border-color:color-mix(in srgb,var(--ui-warning) 55%,var(--ds-border,var(--ui-border)));background:color-mix(in srgb,var(--ui-warning) 10%,var(--ds-surface,var(--ui-panel)));color:var(--ds-text,var(--ui-text))}
+.catalog-token-rows>div.pending code,.catalog-token-rows>div.pending .token-resolved{color:var(--ds-text,var(--ui-text))}
+
+/* The overlay and content share the same actual grid tracks. */
+.layout-preview-summary{margin-bottom:16px}
+.layout-preview-main{grid-template-columns:subgrid;grid-template-rows:auto auto}
+.layout-preview-hero{grid-column:1/-1}
+.layout-preview-cards{grid-column:1/-1;display:grid;grid-template-columns:subgrid}
+.layout-preview-cards span{grid-column:span var(--layout-card-span)}
+.layout-rhythm-mobile .layout-preview-main,.layout-rhythm-mobile-landscape .layout-preview-main{grid-column:1/-1}
+
+@media(max-width:640px){.catalog-state-matrix{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.project-button,.project-icon-button,.project-modal-demo,.project-select,.project-field,.project-checkbox,.project-radio,.project-switch,.project-tabs [role=tab],.project-calendar button,.project-pagination button,.project-list button,.project-card,.project-accordion button,.project-breadcrumbs a,.scenario-carousel-live>button{transition-duration:1ms}.project-renderer-playground .project-button:not(:disabled):active{transform:none}}

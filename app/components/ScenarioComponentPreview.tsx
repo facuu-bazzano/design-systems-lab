@@ -96,7 +96,7 @@ function ScenarioModal({ portalStyle }: { portalStyle?: CSSProperties }) {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
-  const showModal = () => { setHost(anchorRef.current?.closest(".scenario-product-shell") || null); setOpen(true); };
+  const showModal = () => { setHost(anchorRef.current?.closest(".scenario-product-shell, .catalog-spec") || null); setOpen(true); };
   const closeModal = () => { setOpen(false); requestAnimationFrame(() => triggerRef.current?.focus()); };
   return <div ref={anchorRef}><button ref={triggerRef} type="button" className="project-modal-demo" onClick={showModal}>Abrir modal</button>{open && host ? createPortal(<div className="scenario-modal-backdrop" style={portalStyle}><section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="scenario-modal-panel"><h4 id={titleId}>Confirmar cambios</h4><p>Esta superficie usa los tokens resueltos del proyecto.</p><div><button type="button" className="project-button" onClick={closeModal}>Confirmar</button><button ref={closeRef} type="button" className="project-modal-demo" onClick={closeModal}>Cerrar</button></div></section></div>, host) : null}</div>;
 }
@@ -165,7 +165,7 @@ function ScenarioToast({ portalStyle }: { portalStyle?: CSSProperties }) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [host, setHost] = useState<Element | null>(null);
-  const showToast = () => { setHost(anchorRef.current?.closest(".scenario-product-shell") || null); setVisible(true); };
+  const showToast = () => { setHost(anchorRef.current?.closest(".scenario-product-shell, .catalog-spec") || null); setVisible(true); };
   return <div ref={anchorRef}><button type="button" className="project-modal-demo" onClick={showToast}>Mostrar notificación</button>{visible && host ? createPortal(<div className="scenario-toast-live" role="status" style={portalStyle}><ProjectAlertPreview state="Success">Cambios guardados.</ProjectAlertPreview><button type="button" aria-label="Cerrar notificación" onClick={() => setVisible(false)}>×</button></div>, host) : null}</div>;
 }
 
@@ -178,7 +178,7 @@ function ScenarioPresentational({ entry }: { entry: CatalogEntry }) {
   if (entry.id === "avatar") return <div className="project-avatar"><CircleUserRound /><span>AL</span></div>;
   if (entry.id === "image") return <div className="project-image">16:9</div>;
   if (entry.id === "divider") return <hr className="project-divider" />;
-  if (entry.id === "breadcrumbs") return <nav className="project-breadcrumbs" aria-label="Migas de pan"><a href="#scenario-content">Sistema</a><ChevronRight /><a href="#scenario-content">Componentes</a><ChevronRight /><span>Actual</span></nav>;
+  if (entry.id === "breadcrumbs") return <nav className="project-breadcrumbs" aria-label="Migas de pan"><a href="#scenario-content" onClick={(event) => event.preventDefault()}>Sistema</a><ChevronRight /><a href="#scenario-content" onClick={(event) => event.preventDefault()}>Componentes</a><ChevronRight /><span aria-current="page">Actual</span></nav>;
   return null;
 }
 
@@ -240,15 +240,15 @@ function SnapshotProjectComponent({ entry, state }: { entry: CatalogEntry; state
   if (entry.id === "divider") return <hr className={`project-divider ${className}`} />;
   if (entry.id === "image") return <div className={`project-image ${className}`}>{state.content === "fallback" ? "Imagen no disponible" : "16:9"}</div>;
   if (entry.id === "list") return <div className={`project-list ${className}`}>{state.content === "empty" ? <p>Sin elementos</p> : <><button type="button" disabled={disabled}>Paleta primaria <ChevronRight /></button><button type="button" disabled={disabled}>Tipografía <ChevronRight /></button></>}</div>;
-  if (entry.id === "modal") return <div className={`${className} snapshot-modal`}><button type="button">Abrir modal</button>{open ? <section role="dialog" aria-label="Confirmar cambios"><b>Confirmar cambios</b><p>Revisá la configuración.</p></section> : null}</div>;
+  if (entry.id === "modal") return <div className={`${className} snapshot-modal`}><button type="button" className="project-modal-demo">Abrir modal</button>{open ? <section role="dialog" aria-label="Confirmar cambios" className="scenario-modal-panel"><b>Confirmar cambios</b><p>Revisá la configuración.</p></section> : null}</div>;
   if (entry.id === "table") return <table className={`project-table ${className}`}><thead><tr><th>Token</th><th>Estado</th></tr></thead><tbody>{state.content === "empty" ? <tr><td colSpan={2}>Sin resultados</td></tr> : <><tr className={state.selection === "selected" ? "selected" : ""}><td>surface.default</td><td>Asignado</td></tr><tr><td>focus.ring</td><td>Asignado</td></tr></>}</tbody></table>;
   if (entry.id === "toast") return <ProjectAlertPreview state={state.validation === "error" ? "Error" : state.validation === "warning" ? "Warning" : state.validation === "success" ? "Success" : "Info"} />;
   return <ScenarioPresentational entry={entry} />;
 }
 
 export function ProjectComponentRenderer({ entry, mode = "playground", state, portalStyle, variantStyle }: { entry: CatalogEntry; mode?: "playground" | "snapshot"; state?: PreviewStateDescriptor; portalStyle?: CSSProperties; variantStyle?: CSSProperties }) {
-  if (mode === "snapshot" && state) return <div className="project-renderer-snapshot" style={variantStyle} inert aria-label={`${entry.name}: ${state.label}`}><SnapshotProjectComponent entry={entry} state={state} /></div>;
-  return <div className="project-renderer-playground" style={variantStyle}><InteractiveProjectComponent entry={entry} portalStyle={{ ...portalStyle, ...variantStyle }} /></div>;
+  if (mode === "snapshot" && state) return <div className="project-renderer-snapshot" data-component-id={entry.id} data-state-id={state.id} style={variantStyle} inert aria-label={`${entry.name}: ${state.label}`}><SnapshotProjectComponent entry={entry} state={state} /></div>;
+  return <div className="project-renderer-playground" data-component-id={entry.id} style={variantStyle}><InteractiveProjectComponent entry={entry} portalStyle={{ ...portalStyle, ...variantStyle }} /></div>;
 }
 
 export function ScenarioComponentPreview({ entry, portalStyle, variantStyle }: { entry: CatalogEntry; portalStyle?: CSSProperties; variantStyle?: CSSProperties }) {

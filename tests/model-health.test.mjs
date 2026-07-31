@@ -121,6 +121,18 @@ test("exports selective tokens, shared CSS variables and structured documentatio
   assert.doesNotMatch(documentation, /\.doc-alert\{[^}]*border-left/);
 });
 
+test("validated starter resolves every catalog component token by its canonical key", () => {
+  const project = model.createInitialProject();
+  const declared = registry.catalogRegistry.flatMap((entry) => entry.componentTokens.map((key) => ({ component: entry.id, key })));
+  const missing = declared.filter(({ key }) => !project.componentTokens.some((token) => token.key === key));
+  assert.deepEqual(missing, [], `catalog keys missing from validated starter: ${missing.map((item) => `${item.component}:${item.key}`).join(", ")}`);
+  for (const { key } of declared) {
+    const token = project.componentTokens.find((item) => item.key === key);
+    assert.ok(token);
+    assert.ok(model.resolveComponent(project, token.id, "light", "mobile"), `${key} does not resolve`);
+  }
+});
+
 test("v3 single-family typography migrates to a reusable family library", () => {
   const current = model.createInitialProject();
   const legacy = structuredClone(current);
