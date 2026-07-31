@@ -38,8 +38,12 @@ test("scenario suite covers the complete catalog and separates platform structur
   assert.match(scenarios, /project\.platforms\[id\]\?\.enabled/);
   assert.match(scenarios, /mobileSuite.*scenarioRegistry\.map/s);
   assert.match(scenarios, /Modo de color para/);
-  assert.match(scenarios, /Simular escala/);
+  assert.match(scenarios, /Foundations aplicados en/);
+  assert.match(scenarios, /const style = snapshot\.cssVariables as CSSProperties/);
+  assert.doesNotMatch(scenarios, /Simular escala|scaleSimulations|applyScaleSimulation/);
   assert.match(css, /\.scenario-product-main\{[^}]*overflow:auto/);
+  assert.match(css, /\.scenario-product-main\{[^}]*overscroll-behavior-block:auto/);
+  assert.match(css, /\.scenario-device-stage\{[^}]*overflow-x:auto;overflow-y:hidden/);
   assert.match(css, /\.scenario-device-stage\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
   assert.match(css, /\.platform-mobile \.scenario-product-shell\{[^}]*height:720px/);
   assert.match(css, /\.platform-tablet \.scenario-product-shell\{[^}]*grid-template-columns:76px/);

@@ -9,15 +9,8 @@ import { ProjectComponentPreview } from "./Catalog";
 import { Alert, Badge, Card, Checkbox, SectionHeading, Select, Toggle } from "./ui/LabUI";
 
 type ExplorerView = "explore" | "platforms" | "modes";
-type ScaleSimulation = "configured" | "compact" | "comfortable" | "zoom";
 
 const comparisonPlatforms: PlatformId[] = ["mobile", "mobile-landscape", "tablet", "desktop"];
-const scaleSimulations: { value: ScaleSimulation; label: string; typography: number; spacing: number; dimensions: number }[] = [
-  { value: "configured", label: "Configurada", typography: 1, spacing: 1, dimensions: 1 },
-  { value: "compact", label: "Compacta", typography: .94, spacing: .82, dimensions: .92 },
-  { value: "comfortable", label: "Respirable", typography: 1.06, spacing: 1.2, dimensions: 1.08 },
-  { value: "zoom", label: "Zoom 125%", typography: 1.25, spacing: 1.25, dimensions: 1.15 },
-];
 const usefulState: Record<string, string> = {
   checkbox: "Selected", radio: "Selected", switch: "Selected", tabs: "Selected", alert: "Warning", badge: "Success",
   progress: "Complete", accordion: "Open", dropdown: "Default", pagination: "Selected", card: "Hover", list: "Selected", toast: "Success",
@@ -41,24 +34,6 @@ const scenarioSections: Record<ScenarioDefinition["id"], { title: string; descri
   ],
 };
 
-function multiplyLength(value: unknown, factor: number) {
-  if (typeof value !== "string") return value;
-  const match = value.match(/^(-?[\d.]+)px$/);
-  return match ? `${Math.round(Number(match[1]) * factor * 100) / 100}px` : value;
-}
-
-function applyScaleSimulation(style: CSSProperties, simulation: ScaleSimulation) {
-  const preset = scaleSimulations.find((item) => item.value === simulation) || scaleSimulations[0];
-  if (simulation === "configured") return style;
-  const adjusted = { ...style } as Record<string, string | number | undefined>;
-  Object.entries(adjusted).forEach(([name, value]) => {
-    if (name.startsWith("--ds-type-") && name.endsWith("-size")) adjusted[name] = multiplyLength(value, preset.typography) as string;
-    else if (name.startsWith("--ds-space-") || name === "--ds-gutter" || name === "--ds-margin") adjusted[name] = multiplyLength(value, preset.spacing) as string;
-    else if (name.startsWith("--ds-dimensions-")) adjusted[name] = multiplyLength(value, preset.dimensions) as string;
-  });
-  return adjusted as CSSProperties;
-}
-
 function ScenarioModule({ entry, style }: { entry: CatalogEntry; style: CSSProperties }) {
   const state = usefulState[entry.id] || entry.states[0];
   return <article className={`scenario-module scenario-module-${entry.id}`}><span>{entry.name}</span><ProjectComponentPreview entry={entry} state={state} portalStyle={style} /></article>;
@@ -79,33 +54,33 @@ function ScenarioFlow({ scenario, entries, style }: { scenario: ScenarioDefiniti
 
 function ScenarioCanvas({ project, scenarioId, initialTheme, platform, showGrid, lockTheme = false }: { project: DesignSystemProject; scenarioId: ScenarioDefinition["id"]; initialTheme: string; platform: PlatformId; showGrid: boolean; lockTheme?: boolean }) {
   const [activeTheme, setActiveTheme] = useState(initialTheme);
-  const [scaleSimulation, setScaleSimulation] = useState<ScaleSimulation>("configured");
   const contentId = `scenario-content-${useId().replaceAll(":", "")}`;
   const scenario = scenarioRegistry.find((item) => item.id === scenarioId) || scenarioRegistry[0];
   const snapshot = resolveProjectTokens(project, activeTheme, platform);
   const entries = scenario.componentIds.map((id) => catalogRegistry.find((entry) => entry.id === id)).filter(Boolean) as CatalogEntry[];
-  const style = applyScaleSimulation(snapshot.cssVariables as CSSProperties, scaleSimulation);
+  const style = snapshot.cssVariables as CSSProperties;
   const platformName = project.platforms[platform]?.name || platform;
   const themeName = project.themes.find((item) => item.id === activeTheme)?.name || activeTheme;
   const columns = String((snapshot.cssVariables as Record<string, string | number>)["--ds-columns"] || "—");
   const typeMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-typography-multiplier"] || 1);
   const spacingMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-spacing-multiplier"] || 1);
+  const dimensionsMultiplier = String((snapshot.cssVariables as Record<string, string | number>)["--ds-dimensions-multiplier"] || 1);
 
   return <article className={`scenario-comparison-card platform-${platform}`}>
     <header className="scenario-comparison-label">
-      <div><b>{platformName}</b><span>{scenario.name}</span></div>
-      <Badge tone={snapshot.ready ? "success" : "warning"}>{snapshot.ready ? "Resuelto" : "Pendiente"}</Badge>
-    </header>
-    <div className="scenario-frame-controls">
-      <div className="scenario-theme-control">
-        <span>Color</span>
-        <div role="group" aria-label={`Modo de color para ${platformName}`}>
-          {project.themes.map((item) => <Toggle key={item.id} pressed={item.id === activeTheme} onPressedChange={() => setActiveTheme(item.id)} disabled={lockTheme}>{item.name}</Toggle>)}
-        </div>
+      <div className="scenario-comparison-title"><div><b>{platformName}</b><span>{scenario.name}</span></div><Badge tone={snapshot.ready ? "success" : "warning"}>{snapshot.ready ? "Resuelto" : "Pendiente"}</Badge></div>
+      <div className="scenario-foundations-applied">
+        {lockTheme || project.themes.length < 2
+          ? <div className="scenario-active-mode"><span>Modo</span><b>{themeName}</b></div>
+          : <div className="scenario-theme-control"><span>Modo</span><div role="group" aria-label={`Modo de color para ${platformName}`}>{project.themes.map((item) => <Toggle key={item.id} pressed={item.id === activeTheme} onPressedChange={() => setActiveTheme(item.id)}>{item.name}</Toggle>)}</div></div>}
+        <dl aria-label={`Foundations aplicados en ${platformName}`}>
+          <div><dt>Tipografía</dt><dd>{typeMultiplier}×</dd></div>
+          <div><dt>Espaciado</dt><dd>{spacingMultiplier}×</dd></div>
+          <div><dt>Dimensiones</dt><dd>{dimensionsMultiplier}×</dd></div>
+          <div><dt>Grilla</dt><dd>{columns} col.</dd></div>
+        </dl>
       </div>
-      <Select label="Simular escala" value={scaleSimulation} onValueChange={(value) => setScaleSimulation(value as ScaleSimulation)} options={scaleSimulations.map((item) => ({ value: item.value, label: item.label }))} />
-      <p>Vista local: no modifica ni exporta tokens.</p>
-    </div>
+    </header>
     <div className="scenario-device-stage">
       <div className={`scenario-product-shell ${showGrid ? "show-grid" : ""}`} style={style}>
         <div className="scenario-grid-lines" aria-hidden="true">{Array.from({ length: Number(columns) || 4 }).map((_, index) => <i key={index} />)}</div>
@@ -150,7 +125,7 @@ export function ScenarioExplorer({ project, initialComponent }: { project: Desig
     : scenarioRegistry.map((item) => ({ value: item.id, label: item.name }));
 
   return <div className="scenario-explorer-v4">
-    <SectionHeading title="Escenarios" description="Probá el sistema en marcos acotados, con navegación fija, contenido desplazable y estructuras propias de cada plataforma activa." />
+    <SectionHeading title="Escenarios" description="Comprobá cómo conviven los foundations y tokens reales del proyecto en marcos acotados, con navegación fija, contenido desplazable y estructuras propias de cada plataforma activa." />
     {initialComponent ? <Alert tone="info" title="Evidencia vinculada">Abrimos el escenario que contiene {catalogRegistry.find((entry) => entry.id === initialComponent)?.name || initialComponent}.</Alert> : null}
     <Card className="scenario-toolbar">
       <Select label="Vista" value={view} onValueChange={(value) => setView(value as ExplorerView)} options={[{ value: "explore", label: "Explorar" }, { value: "platforms", label: "Comparar plataformas" }, { value: "modes", label: "Comparar modos" }]} />
@@ -161,7 +136,7 @@ export function ScenarioExplorer({ project, initialComponent }: { project: Desig
     <div className="scenario-context-row">
       <div><b>Cobertura completa</b><span>{scenarioCoverage.length}/{catalogRegistry.length} componentes en {scenarioRegistry.length} escenarios</span></div>
       <div><b>Plataformas activas</b><span>{enabledPlatforms.map((id) => project.platforms[id].name).join(" · ")}</span></div>
-      <div><b>Composición actual</b><span>{mobileSuite ? "Tres flujos mobile" : `${comparisons.length} ${comparisons.length === 1 ? "marco" : "marcos"}`}</span></div>
+      <div><b>Fuente de la vista</b><span>Foundations y tokens resueltos · Sin simulaciones locales</span></div>
     </div>
     {view === "platforms" && enabledPlatforms.length < 2 ? <Alert tone="info" title="Solo hay una plataforma activa">Activá Tablet o Desktop desde Proyecto para compararlas. Escenarios no muestra plataformas que el proyecto no contempla.</Alert> : null}
     {view === "modes" && project.themes.length < 2 ? <Alert tone="info" title="Solo hay un modo configurado">Agregá otro modo de color para habilitar una comparación real.</Alert> : null}
